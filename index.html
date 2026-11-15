@@ -60,7 +60,7 @@
 <div class="wrap">
 
   <h1>情绪指标 · 盘中温度计</h1>
-  <div class="subtitle">2026-11-13（周五）收盘口径 · 数据来源：通达信（实时行情 + 涨停/跌停池 + 指数日线）</div>
+  <div class="subtitle">2026-11-13（周五）收盘口径 · 数据来源：通达信（实时行情 + 涨停/跌停池 + 指数日线）+ 公开涨停复盘（昨溢价）</div>
 
   <!-- 摘要卡 -->
   <div class="summary">
@@ -90,7 +90,7 @@
   <div class="card">
     <h2>情绪温度（0–100）</h2>
     <div class="thermo">
-      <div class="marker" id="marker" style="left:38%;"></div>
+      <div class="marker" id="marker" style="left:36%;"></div>
       <div class="band">
         <div class="seg s1">冰点 0–25</div>
         <div class="seg s2">修复 25–40</div>
@@ -106,11 +106,11 @@
       </div>
     </div>
     <div class="reading">
-      <span class="big">38</span>
+      <span class="big">36</span>
       <span class="stage">修复（偏弱）</span>
-      <span class="meta">历史分位 ≈ 20%（近22个交易日） · 较 11-12 小幅回落 · 全A成交额 1.66万亿</span>
+      <span class="meta">历史分位 ≈ 33%（近22日广度×量能代理） · 较 11-12 回落 · 全A成交额 1.66万亿（-14%）</span>
     </div>
-    <p class="note" style="margin-top:10px;">读数 38 落在「修复」区间（25–40）下沿，情绪偏弱、临近冰点：上涨广度仅 14.4%、涨停与跌停几乎打平（38 vs 34）、小盘（国证2000 -2.72%）明显跑输沪深300（-0.68%）。</p>
+    <p class="note" style="margin-top:10px;">读数 36 落在「修复」区间（25–40）下沿，情绪偏弱、临近冰点：上涨广度仅 14.4%、涨停与跌停几乎打平（38 vs 34）、<b>昨溢价转负（-1.54%）</b>、小盘（国证2000 -2.72%）明显跑输沪深300（-0.68%）。</p>
   </div>
 
   <!-- 近22日情绪分 -->
@@ -139,12 +139,12 @@
         <tr><td>涨停净额 <span class="tag y">中性</span></td><td class="num">10%</td><td>+4（38 − 34）</td><td class="num">54</td><td>涨停家数 − 跌停家数；50 + 净额</td></tr>
         <tr><td>最高连板 <span class="tag y">中性</span></td><td class="num">10%</td><td>4 板（天普股份）</td><td class="num">50</td><td>当日最高连续涨停高度（东财涨停池口径）</td></tr>
         <tr><td>封板强度 <span class="tag o">偏暖</span></td><td class="num">15%</td><td>封板率 ≈ 68%（估）</td><td class="num">68</td><td>收盘封住数 / 盘中曾涨停数；炸板数未直接覆盖，为估算</td></tr>
-        <tr><td>昨溢价 <span class="tag x">未覆盖</span></td><td class="num">10%</td><td>未覆盖</td><td class="num">50</td><td>昨日涨停股今日平均溢价；当前数据源未覆盖，按中性 50 占位</td></tr>
+        <tr><td>昨溢价 <span class="tag g">负溢价</span></td><td class="num">10%</td><td>-1.54%（37只等权）</td><td class="num">35</td><td>昨日（11-12）涨停股今日（11-13）收盘等权溢价；中位 -4.27%，红盘率 38%，8 只跌停</td></tr>
         <tr><td>成交量能 <span class="tag g">缩量</span></td><td class="num">15%</td><td>0.857 倍</td><td class="num">36</td><td>全A成交额 1.66万亿 / 昨日 1.93万亿</td></tr>
         <tr><td>小盘相对 <span class="tag g">跑输</span></td><td class="num">15%</td><td>−2.04 pp</td><td class="num">30</td><td>国证2000（-2.72%）− 沪深300（-0.68%）</td></tr>
       </tbody>
     </table>
-    <p class="note" style="margin-top:10px;">合成：情绪温度 = Σ（分量情绪分 × 权重）≈ 37.6，四舍五入显示 38。各分量情绪分为 0–100 映射值（非历史分位；历史分位需更长序列，本次仅广度/量能可回算）。</p>
+    <p class="note" style="margin-top:10px;">合成：情绪温度 = Σ（分量情绪分 × 权重）≈ 36.1，四舍五入显示 36。各分量情绪分为 0–100 映射值（非历史分位；历史分位需更长序列，本次仅广度/量能可回算）。昨溢价情绪分 = 50 + 溢价%×10，映射至 0–100。</p>
   </div>
 
   <!-- 底部注释 -->
@@ -159,7 +159,7 @@
     </div>
     <div class="disc">
       <b>免责声明</b>：以上内容基于公开数据和量化分析，仅供参考，不构成投资建议。市场有风险，投资需谨慎。任何投资决策应结合个人风险承受能力、资金状况和投资目标独立判断，必要时咨询持牌专业机构。过往表现不预示未来收益。<br>
-      数据口径：本页为收盘口径（非盘中估算）；「个股广度」「成交量能」可直接回算，历史曲线为两因子代理；「封板强度」为估算、「昨溢价」未覆盖，已在表中标注。
+      数据口径：本页为收盘口径（非盘中估算）；「个股广度」「成交量能」可直接回算，历史曲线为两因子代理；「昨溢价」取自公开涨停复盘数据（37只等权，收盘口径），「封板强度」仍为估算，已在表中标注。
     </div>
   </div>
 
@@ -189,7 +189,7 @@
   }
 
   // 当日全口径温度读数（用于参考线）
-  var todayTemp = 38;
+  var todayTemp = 36;
 
   // ---- 折线图 ----
   var lineChart = echarts.init(document.getElementById('lineChart'));
@@ -217,9 +217,9 @@
 
   // ---- 七分量柱状图 ----
   var compNames = ['个股广度','涨停净额','最高连板','封板强度','昨溢价','成交量能','小盘相对'];
-  var compScores = [14,54,50,68,50,36,30];
-  var compRaws = ['上涨 14.4%','+4（38−34）','4 板','≈68%（估）','未覆盖','0.857 倍','−2.04 pp'];
-  var compColors = ['#3b82f6','#f59e0b','#f59e0b','#f97316','#9ca3af','#10b981','#10b981'];
+  var compScores = [14,54,50,68,35,36,30];
+  var compRaws = ['上涨 14.4%','+4（38−34）','4 板','≈68%（估）','−1.54%','0.857 倍','−2.04 pp'];
+  var compColors = ['#3b82f6','#f59e0b','#f59e0b','#f97316','#10b981','#10b981','#10b981'];
 
   var barChart = echarts.init(document.getElementById('barChart'));
   barChart.setOption({
