@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>情绪指标·温度计 2026-11-13 收盘</title>
+<title>情绪指标 · 盘中温度计</title>
 <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
 <style>
   :root{
@@ -15,9 +15,26 @@
   body{background:var(--bg); color:var(--ink); font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif; line-height:1.6; padding:24px 16px;}
   .wrap{max-width:960px; margin:0 auto;}
   h1{font-size:22px; font-weight:700; margin-bottom:6px;}
-  .subtitle{color:var(--red); font-size:13px; margin-bottom:20px;}
+  .subtitle{color:var(--sub); font-size:13px; margin-bottom:20px;}
   .card{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:20px; margin-bottom:16px; box-shadow:0 1px 2px rgba(0,0,0,.04);}
   .card h2{font-size:16px; font-weight:700; margin-bottom:14px; padding-left:10px; border-left:4px solid var(--blue);}
+  /* 时间选择工具栏 */
+  .toolbar{display:flex; flex-wrap:wrap; gap:12px; align-items:center;}
+  .toolbar label{font-size:13px; color:var(--sub); font-weight:600;}
+  .toolbar select{padding:8px 12px; border:1px solid var(--line); border-radius:8px; font-size:14px; background:#fff; color:var(--ink); cursor:pointer; min-width:150px;}
+  .toolbar select:focus{outline:none; border-color:var(--blue);}
+  .toolbar .refresh{font-size:13px; color:var(--sub);}
+  .toolbar .refresh button{padding:7px 14px; border:1px solid var(--line); border-radius:8px; background:#fff; font-size:13px; cursor:pointer; color:var(--ink);}
+  .toolbar .refresh button:hover{border-color:var(--blue); color:var(--blue);}
+  .toolbar .auto{display:flex; align-items:center; gap:6px;}
+  #lastRefresh{font-size:11px; color:#9ca3af; margin-left:auto;}
+  .switch{position:relative; display:inline-block; width:40px; height:22px; flex:none;}
+  .switch input{opacity:0; width:0; height:0;}
+  .switch .slider{position:absolute; cursor:pointer; top:0; left:0; right:0; bottom:0; background:#cbd5e1; border-radius:22px; transition:.2s;}
+  .switch .slider:before{content:''; position:absolute; height:16px; width:16px; left:3px; top:3px; background:#fff; border-radius:50%; transition:.2s;}
+  .switch input:checked + .slider{background:var(--blue);}
+  .switch input:checked + .slider:before{transform:translateX(18px);}
+  .status-line{font-size:12px; color:var(--sub); margin-top:10px;}
   /* 摘要卡 */
   .summary{display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:16px;}
   .stat{background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px;}
@@ -53,113 +70,73 @@
   .note p{margin-bottom:6px;}
   .src{font-size:11px; color:#9ca3af; margin-top:8px;}
   .disc{font-size:11px; color:#9ca3af; border-top:1px dashed var(--line); padding-top:10px; margin-top:10px;}
-  @media(max-width:640px){ .summary{grid-template-columns:repeat(2,1fr);} }
+  .empty-tip{font-size:13px; color:var(--orange); font-weight:600;}
+  @media(max-width:640px){ .summary{grid-template-columns:repeat(2,1fr);} .toolbar select{min-width:120px;} }
 </style>
 </head>
 <body>
 <div class="wrap">
 
   <h1>情绪指标 · 盘中温度计</h1>
-  <div class="subtitle">2026-11-13（周五）收盘口径 · 数据来源：通达信（实时行情 + 涨停/跌停池 + 指数日线）+ 公开涨停复盘（昨溢价）</div>
+  <div class="subtitle" id="subtitle">数据来源：通达信实时行情 + 公开涨停复盘 · 静态快照版（每日更新）</div>
+
+  <!-- 工具栏 -->
+  <div class="card">
+    <div class="toolbar">
+      <span class="refresh"><button onclick="loadData()">刷新数据</button></span>
+      <span class="auto">
+        <label class="switch"><input type="checkbox" id="autoSwitch" checked onchange="onAutoToggle()"><span class="slider"></span></label>
+        <span id="autoLabel" style="font-size:12px;color:var(--sub);">自动刷新（60s）</span>
+      </span>
+      <span id="lastRefresh"></span>
+    </div>
+    <div class="status-line" id="statusLine">正在加载…</div>
+  </div>
 
   <!-- 摘要卡 -->
-  <div class="summary">
-    <div class="stat">
-      <div class="k">上证指数</div>
-      <div class="v green">3634.35</div>
-      <div class="d green">-0.59%</div>
-    </div>
-    <div class="stat">
-      <div class="k">深证成指</div>
-      <div class="v green">10968.79</div>
-      <div class="d green">-2.05%</div>
-    </div>
-    <div class="stat">
-      <div class="k">全A涨跌家数</div>
-      <div class="v">755 / 4472</div>
-      <div class="d">上涨占比 14.4%</div>
-    </div>
-    <div class="stat">
-      <div class="k">涨停 / 跌停</div>
-      <div class="v">38 / 34</div>
-      <div class="d">净额 +4 · 最高 4 连板</div>
-    </div>
-  </div>
+  <div class="summary" id="summaryBox"></div>
 
   <!-- 温度计 -->
   <div class="card">
     <h2>情绪温度（0–100）</h2>
-    <div class="thermo">
-      <div class="marker" id="marker" style="left:36%;"></div>
-      <div class="band">
-        <div class="seg s1">冰点 0–25</div>
-        <div class="seg s2">修复 25–40</div>
-        <div class="seg s3">升温 40–55</div>
-        <div class="seg s4">主升·分歧·高潮 55–100</div>
-      </div>
-      <div class="ticks">
-        <span class="tick" style="left:0%;">0</span>
-        <span class="tick" style="left:25%;">25</span>
-        <span class="tick" style="left:40%;">40</span>
-        <span class="tick" style="left:55%;">55</span>
-        <span class="tick" style="left:100%;">100</span>
-      </div>
+    <div id="thermoBox">
+      <div class="empty-tip">暂无数据</div>
     </div>
-    <div class="reading">
-      <span class="big">36</span>
-      <span class="stage">修复（偏弱）</span>
-      <span class="meta">历史分位 ≈ 33%（近22日广度×量能代理） · 较 11-12 回落 · 全A成交额 1.66万亿（-14%）</span>
-    </div>
-    <p class="note" style="margin-top:10px;">读数 36 落在「修复」区间（25–40）下沿，情绪偏弱、临近冰点：上涨广度仅 14.4%、涨停与跌停几乎打平（38 vs 34）、<b>昨溢价转负（-1.54%）</b>、小盘（国证2000 -2.72%）明显跑输沪深300（-0.68%）。</p>
   </div>
 
-  <!-- 近22日情绪分 -->
+  <!-- 近60日情绪温度 -->
   <div class="card">
-    <h2>近 22 个交易日情绪分（广度 × 量能合成代理）</h2>
+    <h2>近 60 个交易日情绪温度（九分量模型）</h2>
     <div class="chart" id="lineChart"></div>
-    <p class="note">说明：历史曲线为「全A上涨广度（60%）+ 全A成交额环比（40%）」合成代理，用于看趋势与分位；不含涨停/连板/封板等短线程式化分量（该部分历史数据未在本次数据源覆盖），故曲线读数低于上方全口径温度。当日全口径温度以顶部色带读数为准。</p>
-    <div class="src">数据来源：通达信（上证指数、深证成指日线 up/down 家数与成交额），2026-11-13 收盘。</div>
+    <p class="note">说明：历史曲线为九分量模型合成的情绪温度（与顶部色带同一口径）。因「百日新高」历史无数据源（仅最近交易日有）、更早日期「涨停/连板/封板」也缺（10-26 起才有），缺失分量已按参与权重归一化处理，故早期读数会略偏高。可拖动下方滑块或滚动鼠标缩放查看任意时间窗口。</p>
+    <div class="src" id="lineSrc">数据来源：通达信。</div>
   </div>
 
-  <!-- 七分量 -->
+  <!-- 九分量 -->
   <div class="card">
-    <h2>七个分量情绪分（0–100）</h2>
+    <h2>九个分量情绪分（0–100）</h2>
     <div class="chart small" id="barChart"></div>
   </div>
 
   <!-- 方法表 -->
   <div class="card">
-    <h2>各分量权重、今日原始值与计算方法</h2>
-    <table>
-      <thead>
-        <tr><th>分量</th><th>权重</th><th>今日原始值</th><th>情绪分</th><th>计算方法</th></tr>
-      </thead>
-      <tbody>
-        <tr><td>个股广度 <span class="tag b">冰点</span></td><td class="num">15%</td><td>上涨占比 14.4%</td><td class="num">14</td><td>全A上涨家数 /（上涨+下跌）家数；755/5227</td></tr>
-        <tr><td>涨停净额 <span class="tag y">中性</span></td><td class="num">10%</td><td>+4（38 − 34）</td><td class="num">54</td><td>涨停家数 − 跌停家数；50 + 净额</td></tr>
-        <tr><td>最高连板 <span class="tag y">中性</span></td><td class="num">10%</td><td>4 板（天普股份）</td><td class="num">50</td><td>当日最高连续涨停高度（东财涨停池口径）</td></tr>
-        <tr><td>封板强度 <span class="tag o">偏暖</span></td><td class="num">15%</td><td>封板率 ≈ 68%（估）</td><td class="num">68</td><td>收盘封住数 / 盘中曾涨停数；炸板数未直接覆盖，为估算</td></tr>
-        <tr><td>昨溢价 <span class="tag g">负溢价</span></td><td class="num">10%</td><td>-1.54%（37只等权）</td><td class="num">35</td><td>昨日（11-12）涨停股今日（11-13）收盘等权溢价；中位 -4.27%，红盘率 38%，8 只跌停</td></tr>
-        <tr><td>成交量能 <span class="tag g">缩量</span></td><td class="num">15%</td><td>0.857 倍</td><td class="num">36</td><td>全A成交额 1.66万亿 / 昨日 1.93万亿</td></tr>
-        <tr><td>小盘相对 <span class="tag g">跑输</span></td><td class="num">15%</td><td>−2.04 pp</td><td class="num">30</td><td>国证2000（-2.72%）− 沪深300（-0.68%）</td></tr>
-      </tbody>
-    </table>
-    <p class="note" style="margin-top:10px;">合成：情绪温度 = Σ（分量情绪分 × 权重）≈ 36.1，四舍五入显示 36。各分量情绪分为 0–100 映射值（非历史分位；历史分位需更长序列，本次仅广度/量能可回算）。昨溢价情绪分 = 50 + 溢价%×10，映射至 0–100。</p>
+    <h2>各分量权重、原始值与计算方法</h2>
+    <div id="methodTable"></div>
   </div>
 
   <!-- 底部注释 -->
   <div class="card">
     <h2>阶段划分与阈值</h2>
     <div class="note">
-      <p>① <b>冰点（0–25）</b>：广度极低、涨停萎缩、跌停增多，情绪见底，多对应左侧或超跌反弹窗口。</p>
-      <p>② <b>修复（25–40）</b>：情绪自冰点回升、涨停修复但量能未有效放大，属弱修复。</p>
-      <p>③ <b>升温（40–55）</b>：涨停扩散、连板高度抬升、量能温和放大，赚钱效应改善。</p>
-      <p>④ <b>主升·分歧·高潮（55–100）</b>：连板高度高、封板率高、小盘显著占优，情绪亢奋，注意高位兑现风险。</p>
-      <p style="margin-top:8px;"><b>阈值链</b>：主升（55–100）&gt; 升温（40–55）&gt; 修复（25–40）&gt; 冰点（&lt;25）。</p>
+      <p>① <b>冰点（0–35）</b>：广度极低、涨停萎缩、跌停增多，昨涨停/昨多板溢价转负，百日新高稀少，情绪见底。</p>
+      <p>② <b>修复（35–50）</b>：情绪自冰点回升、涨停修复但量能未有效放大，赚钱效应刚转正，属弱修复。</p>
+      <p>③ <b>升温（50–65）</b>：涨停扩散、连板高度抬升、量能温和放大，昨涨停溢价回正，赚钱效应改善。</p>
+      <p>④ <b>主升·分歧·高潮（65–100）</b>：连板高度高、封板率高、昨多板强度强、百日新高增多、小盘占优，情绪亢奋，注意高位兑现风险。</p>
+      <p style="margin-top:8px;"><b>阈值链</b>：主升（65–100）&gt; 升温（50–65）&gt; 修复（35–50）&gt; 冰点（&lt;35）。阈值经 v5 模型历史回测校准：50 为模型中性能点（修复/升温分界）；冰点阈值 35 处次日反弹最强（+56.2pp、胜率100%），高潮阈值 65 处次日回落最显著（-10.4pp、胜率33%），随样本滚动更新。</p>
     </div>
     <div class="disc">
       <b>免责声明</b>：以上内容基于公开数据和量化分析，仅供参考，不构成投资建议。市场有风险，投资需谨慎。任何投资决策应结合个人风险承受能力、资金状况和投资目标独立判断，必要时咨询持牌专业机构。过往表现不预示未来收益。<br>
-      数据口径：本页为收盘口径（非盘中估算）；「个股广度」「成交量能」可直接回算，历史曲线为两因子代理；「昨溢价」取自公开涨停复盘数据（37只等权，收盘口径），「封板强度」仍为估算，已在表中标注。
+      数据口径：每个交易日 08:00 / 10:00 / 12:00 / 14:00 / 15:30 五个时点由定时任务抓取并写入 PostgreSQL，本页默认显示最新收盘快照（15:30），并每 60 秒自动刷新。情绪模型为九分量加权，分三类：赚钱效应 52%（昨涨停溢价20% + 昨多板强度18% + 封板强度8% + 最高连板6%）、盘面温度 27%（个股广度14% + 涨停净额13%）、动能结构 21%（成交量能6% + 百日新高7% + 小盘相对8%）。封板强度以 63% 为中性锚点（score = clamp(2.5×封板率−107.5, 0, 100)）。
     </div>
   </div>
 
@@ -167,77 +144,347 @@
 
 <script>
 (function(){
-  // ---- 数据（来源：通达信，2026-10-15 ~ 2026-11-13 共22个交易日）----
-  var dates = ['10-15','10-16','10-19','10-20','10-21','10-22','10-23','10-26','10-27','10-28','10-29','10-30','11-02','11-03','11-04','11-05','11-06','11-09','11-10','11-11','11-12','11-13'];
-  // 全A上涨占比（%）：沪市 up/down + 深市 up/down
-  var breadth = [7.66,60.42,43.52,67.03,38.88,8.55,82.28,41.03,11.32,76.39,14.61,16.89,84.86,40.28,85.08,88.10,13.92,40.69,78.56,67.08,16.19,14.44];
-  // 全A成交额（亿元）：沪市 Amount + 深市 Amount
-  var amount  = [16330,15554,14375,14561,14294,15287,19563,16088,14609,16285,15565,16744,17837,17034,20377,21179,16578,14826,15049,16763,19320,16557];
+  // ---- 静态数据（GitHub Pages 无法访问云库，数据固化于此）----
+  var cloud = null;
+  var STATIC_CONFIG = {"id":5,"version":5,"components":[{"a":10,"b":50,"key":"yzyj","desc":"昨日涨停指数880863当日涨跌幅","name":"昨涨停溢价","field":"yzyj","group":"赚钱效应","weight":0.2},{"a":8,"b":50,"key":"duoban","desc":"最近多板指数880785当日涨跌幅","name":"昨多板强度","field":"duoban","group":"赚钱效应","weight":0.18},{"a":2.5,"b":-107.5,"key":"seal","desc":"封住数/曾涨停数(中性锚63%)","name":"封板强度","field":"seal_rate","group":"赚钱效应","weight":0.08},{"a":10,"b":0,"key":"max_board","desc":"当日最高连续涨停高度","name":"最高连板","field":"max_board","group":"赚钱效应","weight":0.06},{"a":1,"b":0,"key":"breadth","desc":"全A上涨家数/(上涨+下跌)","name":"个股广度","field":"up_ratio","group":"盘面温度","weight":0.14},{"a":0.5,"b":50,"key":"limit_net","desc":"涨停家数−跌停家数","name":"涨停净额","field":"limit_net","group":"盘面温度","weight":0.13},{"a":100,"b":-50,"key":"vol","desc":"全A成交额/昨日成交额","name":"成交量能","field":"vol_ratio","group":"动能结构","weight":0.06},{"a":0.25,"b":0,"key":"newhigh","desc":"当日创100日新高家数","name":"百日新高","field":"new_high","group":"动能结构","weight":0.07},{"a":10,"b":50,"key":"small","desc":"国证2000涨跌幅−沪深300涨跌幅","name":"小盘相对","field":"small_rel","group":"动能结构","weight":0.08}],"thresholds":[{"max":35,"min":0,"color":"#3b82f6","stage":"冰点"},{"max":50,"min":35,"color":"#10b981","stage":"修复（偏弱）"},{"max":65,"min":50,"color":"#f59e0b","stage":"升温"},{"max":100,"min":65,"color":"#f97316","stage":"主升·分歧·高潮"}],"note":"v5：3分类九分量(赚钱效应52%/盘面温度27%/动能结构21%)。权重经65日回测+共线惩罚校准：昨涨停溢价20/昨多板18(温度相关最强0.88-0.89)、涨停净额13(强且独立)、广度14(强但共线0.76-0.82)、封板8(弱独立)、小盘8(中强风格)、量能6(口径弱)、连板6(弱)、百日新高7。封板强度映射改中性锚点63%(a=2.5,b=-107.5)。阈值35/50/65经v5温度次日表现回测确认(冰点<35次日胜率100%、高潮>=65次日-10.4pp、50为模型中性能点)。","is_active":true,"created_at":"2026-11-15T17:01:52.372184+08:00"};
+  var STATIC_ROWS = [{"id":1,"trade_date":"2026-11-13","time_slot":"15:30","sh_index":3634.35,"sh_pct":-0.59,"sz_index":10968.79,"sz_pct":-2.05,"hs300_pct":-0.68,"gz2000_pct":-2.72,"up_count":755,"down_count":4472,"up_ratio":14.44,"limit_up":37,"limit_down":33,"limit_net":4,"max_board":4,"seal_rate":63.79,"yzyj":-1.54,"amount_yi":16557,"vol_ratio":0.857,"small_rel":-2.03,"breadth_score":14,"limit_net_score":54,"max_board_score":50,"seal_score":52,"yzyj_score":35,"vol_score":36,"small_score":30,"temperature":31,"percentile":7.7,"stage":"冰点","created_at":"2026-11-15T11:55:30.153468+08:00","config_version":5,"components":{"vol":{"raw":0.857,"score":36},"seal":{"raw":63.79,"score":52},"yzyj":{"raw":-1.54,"score":35},"small":{"raw":-2.03,"score":30},"duoban":{"raw":-3.79,"score":20},"breadth":{"raw":14.44,"score":14},"newhigh":{"raw":61,"score":15},"limit_net":{"raw":4,"score":52},"max_board":{"raw":4,"score":40}},"duoban":-3.79,"duoban_score":null,"new_high":61,"new_high_score":15},{"id":22,"trade_date":"2026-11-12","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":846,"down_count":4379,"up_ratio":16.19,"limit_up":37,"limit_down":5,"limit_net":32,"max_board":5,"seal_rate":51.39,"yzyj":-0.87,"amount_yi":19321,"vol_ratio":1.153,"small_rel":-1.22,"breadth_score":16,"limit_net_score":82,"max_board_score":63,"seal_score":21,"yzyj_score":null,"vol_score":65,"small_score":38,"temperature":41,"percentile":20.0,"stage":"修复（偏弱）","created_at":"2026-11-15T12:07:08.565513+08:00","config_version":5,"components":{"vol":{"raw":1.153,"score":65},"seal":{"raw":51.39,"score":21},"yzyj":{"raw":-0.87,"score":41},"small":{"raw":-1.22,"score":38},"duoban":{"raw":-1.04,"score":42},"breadth":{"raw":16.19,"score":16},"limit_net":{"raw":32,"score":66},"max_board":{"raw":5,"score":50}},"duoban":-1.04,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":21,"trade_date":"2026-11-11","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":3415,"down_count":1676,"up_ratio":67.08,"limit_up":85,"limit_down":0,"limit_net":85,"max_board":4,"seal_rate":81.73,"yzyj":2.89,"amount_yi":16763,"vol_ratio":1.114,"small_rel":1.05,"breadth_score":67,"limit_net_score":100,"max_board_score":50,"seal_score":97,"yzyj_score":null,"vol_score":61,"small_score":61,"temperature":72,"percentile":89.2,"stage":"主升·分歧·高潮","created_at":"2026-11-15T12:07:08.565513+08:00","config_version":5,"components":{"vol":{"raw":1.114,"score":61},"seal":{"raw":81.73,"score":97},"yzyj":{"raw":2.89,"score":79},"small":{"raw":1.05,"score":60},"duoban":{"raw":1.38,"score":61},"breadth":{"raw":67.08,"score":67},"limit_net":{"raw":85,"score":92},"max_board":{"raw":4,"score":40}},"duoban":1.38,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":20,"trade_date":"2026-11-10","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":4035,"down_count":1101,"up_ratio":78.56,"limit_up":93,"limit_down":0,"limit_net":93,"max_board":7,"seal_rate":83.04,"yzyj":4.85,"amount_yi":15048,"vol_ratio":1.015,"small_rel":1.68,"breadth_score":79,"limit_net_score":100,"max_board_score":88,"seal_score":100,"yzyj_score":null,"vol_score":51,"small_score":67,"temperature":85,"percentile":100.0,"stage":"主升·分歧·高潮","created_at":"2026-11-15T12:07:08.565513+08:00","config_version":5,"components":{"vol":{"raw":1.015,"score":51},"seal":{"raw":83.04,"score":100},"yzyj":{"raw":4.85,"score":98},"small":{"raw":1.68,"score":67},"duoban":{"raw":4.34,"score":85},"breadth":{"raw":78.56,"score":79},"limit_net":{"raw":93,"score":96},"max_board":{"raw":7,"score":70}},"duoban":4.34,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":19,"trade_date":"2026-11-09","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":2077,"down_count":3028,"up_ratio":40.69,"limit_up":54,"limit_down":1,"limit_net":53,"max_board":6,"seal_rate":55.1,"yzyj":3.95,"amount_yi":14826,"vol_ratio":0.894,"small_rel":0.22,"breadth_score":41,"limit_net_score":100,"max_board_score":75,"seal_score":30,"yzyj_score":null,"vol_score":39,"small_score":52,"temperature":63,"percentile":72.3,"stage":"升温","created_at":"2026-11-15T12:07:08.565513+08:00","config_version":5,"components":{"vol":{"raw":0.894,"score":39},"seal":{"raw":55.1,"score":30},"yzyj":{"raw":3.95,"score":90},"small":{"raw":0.22,"score":52},"duoban":{"raw":2.61,"score":71},"breadth":{"raw":40.69,"score":41},"limit_net":{"raw":53,"score":76},"max_board":{"raw":6,"score":60}},"duoban":2.61,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":18,"trade_date":"2026-11-06","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":725,"down_count":4483,"up_ratio":13.92,"limit_up":32,"limit_down":15,"limit_net":17,"max_board":5,"seal_rate":69.57,"yzyj":0.13,"amount_yi":16578,"vol_ratio":0.783,"small_rel":-0.89,"breadth_score":14,"limit_net_score":67,"max_board_score":63,"seal_score":66,"yzyj_score":null,"vol_score":28,"small_score":41,"temperature":43,"percentile":26.2,"stage":"修复（偏弱）","created_at":"2026-11-15T12:07:08.565513+08:00","config_version":5,"components":{"vol":{"raw":0.783,"score":28},"seal":{"raw":69.57,"score":66},"yzyj":{"raw":0.13,"score":51},"small":{"raw":-0.89,"score":41},"duoban":{"raw":-1.32,"score":39},"breadth":{"raw":13.92,"score":14},"limit_net":{"raw":17,"score":58},"max_board":{"raw":5,"score":50}},"duoban":-1.32,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":17,"trade_date":"2026-11-05","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":4591,"down_count":620,"up_ratio":88.1,"limit_up":84,"limit_down":0,"limit_net":84,"max_board":4,"seal_rate":63.64,"yzyj":4.48,"amount_yi":21180,"vol_ratio":1.039,"small_rel":2.1,"breadth_score":88,"limit_net_score":100,"max_board_score":50,"seal_score":52,"yzyj_score":null,"vol_score":54,"small_score":71,"temperature":76,"percentile":96.9,"stage":"主升·分歧·高潮","created_at":"2026-11-15T12:07:08.565513+08:00","config_version":5,"components":{"vol":{"raw":1.039,"score":54},"seal":{"raw":63.64,"score":52},"yzyj":{"raw":4.48,"score":95},"small":{"raw":2.1,"score":71},"duoban":{"raw":2.29,"score":68},"breadth":{"raw":88.1,"score":88},"limit_net":{"raw":84,"score":92},"max_board":{"raw":4,"score":40}},"duoban":2.29,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":16,"trade_date":"2026-11-04","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":4396,"down_count":771,"up_ratio":85.08,"limit_up":118,"limit_down":10,"limit_net":108,"max_board":3,"seal_rate":78.15,"yzyj":-0.14,"amount_yi":20377,"vol_ratio":1.196,"small_rel":1.97,"breadth_score":85,"limit_net_score":100,"max_board_score":38,"seal_score":88,"yzyj_score":null,"vol_score":70,"small_score":70,"temperature":69,"percentile":83.1,"stage":"主升·分歧·高潮","created_at":"2026-11-15T12:07:08.565513+08:00","config_version":5,"components":{"vol":{"raw":1.196,"score":70},"seal":{"raw":78.15,"score":88},"yzyj":{"raw":-0.14,"score":49},"small":{"raw":1.97,"score":70},"duoban":{"raw":1.38,"score":61},"breadth":{"raw":85.08,"score":85},"limit_net":{"raw":108,"score":100},"max_board":{"raw":3,"score":30}},"duoban":1.38,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":15,"trade_date":"2026-11-03","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":2067,"down_count":3065,"up_ratio":40.28,"limit_up":48,"limit_down":17,"limit_net":31,"max_board":4,"seal_rate":58.54,"yzyj":1.24,"amount_yi":17034,"vol_ratio":0.955,"small_rel":-1.82,"breadth_score":40,"limit_net_score":81,"max_board_score":50,"seal_score":39,"yzyj_score":null,"vol_score":46,"small_score":32,"temperature":49,"percentile":47.7,"stage":"修复（偏弱）","created_at":"2026-11-15T12:07:08.565513+08:00","config_version":5,"components":{"vol":{"raw":0.955,"score":46},"seal":{"raw":58.54,"score":39},"yzyj":{"raw":1.24,"score":62},"small":{"raw":-1.82,"score":32},"duoban":{"raw":-0.46,"score":46},"breadth":{"raw":40.28,"score":40},"limit_net":{"raw":31,"score":66},"max_board":{"raw":4,"score":40}},"duoban":-0.46,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":14,"trade_date":"2026-11-02","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":4429,"down_count":790,"up_ratio":84.86,"limit_up":125,"limit_down":8,"limit_net":117,"max_board":6,"seal_rate":81.7,"yzyj":3.04,"amount_yi":17837,"vol_ratio":1.065,"small_rel":1.91,"breadth_score":85,"limit_net_score":100,"max_board_score":75,"seal_score":97,"yzyj_score":null,"vol_score":57,"small_score":69,"temperature":78,"percentile":98.5,"stage":"主升·分歧·高潮","created_at":"2026-11-15T12:07:08.565513+08:00","config_version":5,"components":{"vol":{"raw":1.065,"score":56},"seal":{"raw":81.7,"score":97},"yzyj":{"raw":3.04,"score":80},"small":{"raw":1.91,"score":69},"duoban":{"raw":1.43,"score":61},"breadth":{"raw":84.86,"score":85},"limit_net":{"raw":117,"score":100},"max_board":{"raw":6,"score":60}},"duoban":1.43,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":13,"trade_date":"2026-10-30","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":880,"down_count":4330,"up_ratio":16.89,"limit_up":47,"limit_down":82,"limit_net":-35,"max_board":5,"seal_rate":60.26,"yzyj":-0.68,"amount_yi":16745,"vol_ratio":1.076,"small_rel":-1.94,"breadth_score":17,"limit_net_score":15,"max_board_score":63,"seal_score":43,"yzyj_score":null,"vol_score":58,"small_score":31,"temperature":33,"percentile":9.2,"stage":"冰点","created_at":"2026-11-15T12:07:08.565513+08:00","config_version":5,"components":{"vol":{"raw":1.076,"score":58},"seal":{"raw":60.26,"score":43},"yzyj":{"raw":-0.68,"score":43},"small":{"raw":-1.94,"score":31},"duoban":{"raw":-4.23,"score":16},"breadth":{"raw":16.89,"score":17},"limit_net":{"raw":-35,"score":32},"max_board":{"raw":5,"score":50}},"duoban":-4.23,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":12,"trade_date":"2026-10-29","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":764,"down_count":4467,"up_ratio":14.61,"limit_up":39,"limit_down":41,"limit_net":-2,"max_board":4,"seal_rate":60.94,"yzyj":-0.85,"amount_yi":15565,"vol_ratio":0.956,"small_rel":-2.07,"breadth_score":15,"limit_net_score":48,"max_board_score":50,"seal_score":45,"yzyj_score":null,"vol_score":46,"small_score":29,"temperature":35,"percentile":12.3,"stage":"修复（偏弱）","created_at":"2026-11-15T12:07:08.565513+08:00","config_version":5,"components":{"vol":{"raw":0.956,"score":46},"seal":{"raw":60.94,"score":45},"yzyj":{"raw":-0.85,"score":42},"small":{"raw":-2.07,"score":29},"duoban":{"raw":-2.7,"score":28},"breadth":{"raw":14.61,"score":15},"limit_net":{"raw":-2,"score":49},"max_board":{"raw":4,"score":40}},"duoban":-2.7,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":11,"trade_date":"2026-10-28","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":3905,"down_count":1207,"up_ratio":76.39,"limit_up":72,"limit_down":5,"limit_net":67,"max_board":5,"seal_rate":51.06,"yzyj":2.37,"amount_yi":16285,"vol_ratio":1.115,"small_rel":1.7,"breadth_score":76,"limit_net_score":100,"max_board_score":63,"seal_score":20,"yzyj_score":null,"vol_score":62,"small_score":67,"temperature":65,"percentile":76.9,"stage":"主升·分歧·高潮","created_at":"2026-11-15T12:07:08.565513+08:00","config_version":5,"components":{"vol":{"raw":1.115,"score":62},"seal":{"raw":51.06,"score":20},"yzyj":{"raw":2.37,"score":74},"small":{"raw":1.7,"score":67},"duoban":{"raw":0.86,"score":57},"breadth":{"raw":76.39,"score":76},"limit_net":{"raw":67,"score":84},"max_board":{"raw":5,"score":50}},"duoban":0.86,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":10,"trade_date":"2026-10-27","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":594,"down_count":4653,"up_ratio":11.32,"limit_up":41,"limit_down":22,"limit_net":19,"max_board":5,"seal_rate":59.42,"yzyj":1.26,"amount_yi":14610,"vol_ratio":0.908,"small_rel":-1.88,"breadth_score":11,"limit_net_score":69,"max_board_score":63,"seal_score":41,"yzyj_score":null,"vol_score":41,"small_score":31,"temperature":42,"percentile":21.5,"stage":"修复（偏弱）","created_at":"2026-11-15T12:07:08.565513+08:00","config_version":5,"components":{"vol":{"raw":0.908,"score":41},"seal":{"raw":59.42,"score":41},"yzyj":{"raw":1.26,"score":63},"small":{"raw":-1.88,"score":31},"duoban":{"raw":-1.98,"score":34},"breadth":{"raw":11.32,"score":11},"limit_net":{"raw":19,"score":60},"max_board":{"raw":5,"score":50}},"duoban":-1.98,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":9,"trade_date":"2026-10-26","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":2110,"down_count":3033,"up_ratio":41.03,"limit_up":55,"limit_down":26,"limit_net":29,"max_board":4,"seal_rate":70.51,"yzyj":2.48,"amount_yi":16088,"vol_ratio":0.822,"small_rel":-1.42,"breadth_score":41,"limit_net_score":79,"max_board_score":50,"seal_score":69,"yzyj_score":null,"vol_score":32,"small_score":36,"temperature":54,"percentile":55.4,"stage":"升温","created_at":"2026-11-15T12:07:08.565513+08:00","config_version":5,"components":{"vol":{"raw":0.822,"score":32},"seal":{"raw":70.51,"score":69},"yzyj":{"raw":2.48,"score":75},"small":{"raw":-1.42,"score":36},"duoban":{"raw":-0.28,"score":48},"breadth":{"raw":41.03,"score":41},"limit_net":{"raw":29,"score":64},"max_board":{"raw":4,"score":40}},"duoban":-0.28,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":8,"trade_date":"2026-10-23","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":4239,"down_count":913,"up_ratio":82.28,"limit_up":null,"limit_down":null,"limit_net":null,"max_board":null,"seal_rate":null,"yzyj":3.38,"amount_yi":19563,"vol_ratio":1.28,"small_rel":0.58,"breadth_score":82,"limit_net_score":null,"max_board_score":null,"seal_score":null,"yzyj_score":null,"vol_score":78,"small_score":56,"temperature":70,"percentile":86.2,"stage":"主升·分歧·高潮","created_at":"2026-11-15T12:07:08.565513+08:00","config_version":5,"components":{"vol":{"raw":1.28,"score":78},"yzyj":{"raw":3.38,"score":84},"small":{"raw":0.58,"score":56},"duoban":{"raw":0.07,"score":51},"breadth":{"raw":82.28,"score":82}},"duoban":0.07,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":7,"trade_date":"2026-10-22","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":450,"down_count":4811,"up_ratio":8.55,"limit_up":null,"limit_down":null,"limit_net":null,"max_board":null,"seal_rate":null,"yzyj":-1.69,"amount_yi":15287,"vol_ratio":1.07,"small_rel":-1.36,"breadth_score":9,"limit_net_score":null,"max_board_score":null,"seal_score":null,"yzyj_score":null,"vol_score":57,"small_score":36,"temperature":28,"percentile":6.2,"stage":"冰点","created_at":"2026-11-15T12:07:08.565513+08:00","config_version":5,"components":{"vol":{"raw":1.07,"score":57},"yzyj":{"raw":-1.69,"score":33},"small":{"raw":-1.36,"score":36},"duoban":{"raw":-3.02,"score":26},"breadth":{"raw":8.55,"score":9}},"duoban":-3.02,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":6,"trade_date":"2026-10-21","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":1967,"down_count":3092,"up_ratio":38.88,"limit_up":null,"limit_down":null,"limit_net":null,"max_board":null,"seal_rate":null,"yzyj":3.17,"amount_yi":14293,"vol_ratio":0.982,"small_rel":1.14,"breadth_score":39,"limit_net_score":null,"max_board_score":null,"seal_score":null,"yzyj_score":null,"vol_score":48,"small_score":61,"temperature":63,"percentile":72.3,"stage":"升温","created_at":"2026-11-15T12:07:08.565513+08:00","config_version":5,"components":{"vol":{"raw":0.982,"score":48},"yzyj":{"raw":3.17,"score":82},"small":{"raw":1.14,"score":61},"duoban":{"raw":1.86,"score":65},"breadth":{"raw":38.88,"score":39}},"duoban":1.86,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":5,"trade_date":"2026-10-20","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":3456,"down_count":1700,"up_ratio":67.03,"limit_up":null,"limit_down":null,"limit_net":null,"max_board":null,"seal_rate":null,"yzyj":2.33,"amount_yi":14561,"vol_ratio":1.013,"small_rel":1.89,"breadth_score":67,"limit_net_score":null,"max_board_score":null,"seal_score":null,"yzyj_score":null,"vol_score":51,"small_score":69,"temperature":61,"percentile":67.7,"stage":"升温","created_at":"2026-11-15T12:07:08.565513+08:00","config_version":5,"components":{"vol":{"raw":1.013,"score":51},"yzyj":{"raw":2.33,"score":73},"small":{"raw":1.89,"score":69},"duoban":{"raw":-0.86,"score":43},"breadth":{"raw":67.03,"score":67}},"duoban":-0.86,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":4,"trade_date":"2026-10-19","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":2229,"down_count":2893,"up_ratio":43.52,"limit_up":null,"limit_down":null,"limit_net":null,"max_board":null,"seal_rate":null,"yzyj":0.41,"amount_yi":14375,"vol_ratio":0.924,"small_rel":-0.11,"breadth_score":44,"limit_net_score":null,"max_board_score":null,"seal_score":null,"yzyj_score":null,"vol_score":42,"small_score":49,"temperature":45,"percentile":36.9,"stage":"修复（偏弱）","created_at":"2026-11-15T12:07:08.565513+08:00","config_version":5,"components":{"vol":{"raw":0.924,"score":42},"yzyj":{"raw":0.41,"score":54},"small":{"raw":-0.11,"score":49},"duoban":{"raw":-1.83,"score":35},"breadth":{"raw":43.52,"score":44}},"duoban":-1.83,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":3,"trade_date":"2026-10-16","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":3111,"down_count":2038,"up_ratio":60.42,"limit_up":null,"limit_down":null,"limit_net":null,"max_board":null,"seal_rate":null,"yzyj":-1.64,"amount_yi":15554,"vol_ratio":0.952,"small_rel":-0.07,"breadth_score":60,"limit_net_score":null,"max_board_score":null,"seal_score":null,"yzyj_score":null,"vol_score":45,"small_score":49,"temperature":44,"percentile":29.2,"stage":"修复（偏弱）","created_at":"2026-11-15T12:07:08.565513+08:00","config_version":5,"components":{"vol":{"raw":0.952,"score":45},"yzyj":{"raw":-1.64,"score":34},"small":{"raw":-0.07,"score":49},"duoban":{"raw":-1.19,"score":40},"breadth":{"raw":60.42,"score":60}},"duoban":-1.19,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":2,"trade_date":"2026-10-15","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":403,"down_count":4856,"up_ratio":7.66,"limit_up":null,"limit_down":null,"limit_net":null,"max_board":null,"seal_rate":null,"yzyj":-2.46,"amount_yi":16330,"vol_ratio":1.155,"small_rel":-2.03,"breadth_score":8,"limit_net_score":null,"max_board_score":null,"seal_score":null,"yzyj_score":null,"vol_score":66,"small_score":30,"temperature":28,"percentile":6.2,"stage":"冰点","created_at":"2026-11-15T12:07:08.565513+08:00","config_version":5,"components":{"vol":{"raw":1.155,"score":66},"yzyj":{"raw":-2.46,"score":25},"small":{"raw":-2.03,"score":30},"duoban":{"raw":-2.08,"score":33},"breadth":{"raw":7.66,"score":8}},"duoban":-2.08,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":65,"trade_date":"2026-10-14","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":937,"down_count":4262,"up_ratio":18.02,"limit_up":null,"limit_down":null,"limit_net":null,"max_board":null,"seal_rate":null,"yzyj":0.09,"amount_yi":14144,"vol_ratio":0.844,"small_rel":-0.46,"breadth_score":18,"limit_net_score":null,"max_board_score":null,"seal_score":null,"yzyj_score":null,"vol_score":34,"small_score":45,"temperature":40,"percentile":16.9,"stage":"修复（偏弱）","created_at":"2026-11-15T12:55:01.609183+08:00","config_version":5,"components":{"vol":{"raw":0.844,"score":34},"yzyj":{"raw":0.09,"score":51},"small":{"raw":-0.46,"score":45},"duoban":{"raw":-0.49,"score":46},"breadth":{"raw":18.02,"score":18}},"duoban":-0.49,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":64,"trade_date":"2026-10-13","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":2820,"down_count":2296,"up_ratio":55.12,"limit_up":null,"limit_down":null,"limit_net":null,"max_board":null,"seal_rate":null,"yzyj":1.68,"amount_yi":16759,"vol_ratio":1.09,"small_rel":0.58,"breadth_score":55,"limit_net_score":null,"max_board_score":null,"seal_score":null,"yzyj_score":null,"vol_score":59,"small_score":56,"temperature":57,"percentile":58.5,"stage":"升温","created_at":"2026-11-15T12:55:01.609183+08:00","config_version":5,"components":{"vol":{"raw":1.09,"score":59},"yzyj":{"raw":1.68,"score":67},"small":{"raw":0.58,"score":56},"duoban":{"raw":-0.15,"score":49},"breadth":{"raw":55.12,"score":55}},"duoban":-0.15,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":63,"trade_date":"2026-10-12","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":1126,"down_count":4082,"up_ratio":21.62,"limit_up":null,"limit_down":null,"limit_net":null,"max_board":null,"seal_rate":null,"yzyj":1.71,"amount_yi":15378,"vol_ratio":0.809,"small_rel":-1.22,"breadth_score":22,"limit_net_score":null,"max_board_score":null,"seal_score":null,"yzyj_score":null,"vol_score":31,"small_score":38,"temperature":45,"percentile":36.9,"stage":"修复（偏弱）","created_at":"2026-11-15T12:55:01.609183+08:00","config_version":5,"components":{"vol":{"raw":0.809,"score":31},"yzyj":{"raw":1.71,"score":67},"small":{"raw":-1.22,"score":38},"duoban":{"raw":-0.42,"score":47},"breadth":{"raw":21.62,"score":22}},"duoban":-0.42,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":62,"trade_date":"2026-10-09","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":3039,"down_count":2122,"up_ratio":58.88,"limit_up":null,"limit_down":null,"limit_net":null,"max_board":null,"seal_rate":null,"yzyj":3.08,"amount_yi":19006,"vol_ratio":1.13,"small_rel":0.06,"breadth_score":59,"limit_net_score":null,"max_board_score":null,"seal_score":null,"yzyj_score":null,"vol_score":63,"small_score":51,"temperature":66,"percentile":78.5,"stage":"主升·分歧·高潮","created_at":"2026-11-15T12:55:01.609183+08:00","config_version":5,"components":{"vol":{"raw":1.13,"score":63},"yzyj":{"raw":3.08,"score":81},"small":{"raw":0.06,"score":51},"duoban":{"raw":1.74,"score":64},"breadth":{"raw":58.88,"score":59}},"duoban":1.74,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":61,"trade_date":"2026-10-08","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":1654,"down_count":3516,"up_ratio":31.99,"limit_up":null,"limit_down":null,"limit_net":null,"max_board":null,"seal_rate":null,"yzyj":0.13,"amount_yi":16821,"vol_ratio":1.17,"small_rel":-0.76,"breadth_score":32,"limit_net_score":null,"max_board_score":null,"seal_score":null,"yzyj_score":null,"vol_score":67,"small_score":42,"temperature":45,"percentile":36.9,"stage":"修复（偏弱）","created_at":"2026-11-15T12:55:01.609183+08:00","config_version":5,"components":{"vol":{"raw":1.17,"score":67},"yzyj":{"raw":0.13,"score":51},"small":{"raw":-0.76,"score":42},"duoban":{"raw":-0.93,"score":43},"breadth":{"raw":31.99,"score":32}},"duoban":-0.93,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":60,"trade_date":"2026-09-30","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":2393,"down_count":2730,"up_ratio":46.71,"limit_up":null,"limit_down":null,"limit_net":null,"max_board":null,"seal_rate":null,"yzyj":1.3,"amount_yi":14380,"vol_ratio":1.02,"small_rel":-0.74,"breadth_score":47,"limit_net_score":null,"max_board_score":null,"seal_score":null,"yzyj_score":null,"vol_score":52,"small_score":43,"temperature":50,"percentile":49.2,"stage":"升温","created_at":"2026-11-15T12:55:01.609183+08:00","config_version":5,"components":{"vol":{"raw":1.02,"score":52},"yzyj":{"raw":1.3,"score":63},"small":{"raw":-0.74,"score":43},"duoban":{"raw":-1.02,"score":42},"breadth":{"raw":46.71,"score":47}},"duoban":-1.02,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":59,"trade_date":"2026-09-29","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":3315,"down_count":1821,"up_ratio":64.54,"limit_up":null,"limit_down":null,"limit_net":null,"max_board":null,"seal_rate":null,"yzyj":2.58,"amount_yi":14092,"vol_ratio":0.828,"small_rel":0.43,"breadth_score":65,"limit_net_score":null,"max_board_score":null,"seal_score":null,"yzyj_score":null,"vol_score":33,"small_score":54,"temperature":59,"percentile":61.5,"stage":"升温","created_at":"2026-11-15T12:55:01.609183+08:00","config_version":5,"components":{"vol":{"raw":0.828,"score":33},"yzyj":{"raw":2.58,"score":76},"small":{"raw":0.43,"score":54},"duoban":{"raw":-0.41,"score":47},"breadth":{"raw":64.54,"score":65}},"duoban":-0.41,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":58,"trade_date":"2026-09-28","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":874,"down_count":4298,"up_ratio":16.9,"limit_up":null,"limit_down":null,"limit_net":null,"max_board":null,"seal_rate":null,"yzyj":-1.95,"amount_yi":17028,"vol_ratio":1.03,"small_rel":-1.26,"breadth_score":17,"limit_net_score":null,"max_board_score":null,"seal_score":null,"yzyj_score":null,"vol_score":53,"small_score":37,"temperature":28,"percentile":6.2,"stage":"冰点","created_at":"2026-11-15T12:55:01.609183+08:00","config_version":5,"components":{"vol":{"raw":1.03,"score":53},"yzyj":{"raw":-1.95,"score":30},"small":{"raw":-1.26,"score":37},"duoban":{"raw":-3.39,"score":23},"breadth":{"raw":16.9,"score":17}},"duoban":-3.39,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":57,"trade_date":"2026-09-24","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":1098,"down_count":4047,"up_ratio":21.34,"limit_up":null,"limit_down":null,"limit_net":null,"max_board":null,"seal_rate":null,"yzyj":0.55,"amount_yi":16534,"vol_ratio":0.937,"small_rel":-0.34,"breadth_score":21,"limit_net_score":null,"max_board_score":null,"seal_score":null,"yzyj_score":null,"vol_score":44,"small_score":47,"temperature":45,"percentile":36.9,"stage":"修复（偏弱）","created_at":"2026-11-15T12:55:01.609183+08:00","config_version":5,"components":{"vol":{"raw":0.937,"score":44},"yzyj":{"raw":0.55,"score":56},"small":{"raw":-0.34,"score":47},"duoban":{"raw":0.12,"score":51},"breadth":{"raw":21.34,"score":21}},"duoban":0.12,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":56,"trade_date":"2026-09-23","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":1776,"down_count":3407,"up_ratio":34.27,"limit_up":null,"limit_down":null,"limit_net":null,"max_board":null,"seal_rate":null,"yzyj":-0.33,"amount_yi":17650,"vol_ratio":0.826,"small_rel":0.52,"breadth_score":34,"limit_net_score":null,"max_board_score":null,"seal_score":null,"yzyj_score":null,"vol_score":33,"small_score":55,"temperature":43,"percentile":26.2,"stage":"修复（偏弱）","created_at":"2026-11-15T12:55:01.609183+08:00","config_version":5,"components":{"vol":{"raw":0.826,"score":33},"yzyj":{"raw":-0.33,"score":47},"small":{"raw":0.52,"score":55},"duoban":{"raw":-0.65,"score":45},"breadth":{"raw":34.27,"score":34}},"duoban":-0.65,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":55,"trade_date":"2026-09-22","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":2301,"down_count":2830,"up_ratio":44.85,"limit_up":null,"limit_down":null,"limit_net":null,"max_board":null,"seal_rate":null,"yzyj":2.44,"amount_yi":21356,"vol_ratio":1.051,"small_rel":-0.11,"breadth_score":45,"limit_net_score":null,"max_board_score":null,"seal_score":null,"yzyj_score":null,"vol_score":55,"small_score":49,"temperature":57,"percentile":58.5,"stage":"升温","created_at":"2026-11-15T12:55:01.609183+08:00","config_version":5,"components":{"vol":{"raw":1.051,"score":55},"yzyj":{"raw":2.44,"score":74},"small":{"raw":-0.11,"score":49},"duoban":{"raw":0.28,"score":52},"breadth":{"raw":44.85,"score":45}},"duoban":0.28,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":54,"trade_date":"2026-09-21","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":4263,"down_count":929,"up_ratio":82.11,"limit_up":null,"limit_down":null,"limit_net":null,"max_board":null,"seal_rate":null,"yzyj":3.21,"amount_yi":20315,"vol_ratio":0.978,"small_rel":0.67,"breadth_score":82,"limit_net_score":null,"max_board_score":null,"seal_score":null,"yzyj_score":null,"vol_score":48,"small_score":57,"temperature":73,"percentile":93.8,"stage":"主升·分歧·高潮","created_at":"2026-11-15T12:55:01.609183+08:00","config_version":5,"components":{"vol":{"raw":0.978,"score":48},"yzyj":{"raw":3.21,"score":82},"small":{"raw":0.67,"score":57},"duoban":{"raw":2.66,"score":71},"breadth":{"raw":82.11,"score":82}},"duoban":2.66,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":53,"trade_date":"2026-09-18","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":3980,"down_count":1130,"up_ratio":77.89,"limit_up":null,"limit_down":null,"limit_net":null,"max_board":null,"seal_rate":null,"yzyj":2.5,"amount_yi":20771,"vol_ratio":1.139,"small_rel":0.7,"breadth_score":78,"limit_net_score":null,"max_board_score":null,"seal_score":null,"yzyj_score":null,"vol_score":64,"small_score":57,"temperature":69,"percentile":83.1,"stage":"主升·分歧·高潮","created_at":"2026-11-15T12:55:01.609183+08:00","config_version":5,"components":{"vol":{"raw":1.139,"score":64},"yzyj":{"raw":2.5,"score":75},"small":{"raw":0.7,"score":57},"duoban":{"raw":1.77,"score":64},"breadth":{"raw":77.89,"score":78}},"duoban":1.77,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":52,"trade_date":"2026-09-17","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":2528,"down_count":2594,"up_ratio":49.36,"limit_up":null,"limit_down":null,"limit_net":null,"max_board":null,"seal_rate":null,"yzyj":0.11,"amount_yi":18231,"vol_ratio":0.991,"small_rel":0.14,"breadth_score":49,"limit_net_score":null,"max_board_score":null,"seal_score":null,"yzyj_score":null,"vol_score":49,"small_score":51,"temperature":51,"percentile":50.8,"stage":"升温","created_at":"2026-11-15T12:55:01.609183+08:00","config_version":5,"components":{"vol":{"raw":0.991,"score":49},"yzyj":{"raw":0.11,"score":51},"small":{"raw":0.14,"score":51},"duoban":{"raw":0.31,"score":52},"breadth":{"raw":49.36,"score":49}},"duoban":0.31,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":51,"trade_date":"2026-09-16","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":3935,"down_count":1149,"up_ratio":77.4,"limit_up":null,"limit_down":null,"limit_net":null,"max_board":null,"seal_rate":null,"yzyj":3.65,"amount_yi":18391,"vol_ratio":1.14,"small_rel":1.36,"breadth_score":77,"limit_net_score":null,"max_board_score":null,"seal_score":null,"yzyj_score":null,"vol_score":64,"small_score":64,"temperature":71,"percentile":87.7,"stage":"主升·分歧·高潮","created_at":"2026-11-15T12:55:01.609183+08:00","config_version":5,"components":{"vol":{"raw":1.14,"score":64},"yzyj":{"raw":3.65,"score":86},"small":{"raw":1.36,"score":64},"duoban":{"raw":0.37,"score":53},"breadth":{"raw":77.4,"score":77}},"duoban":0.37,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":50,"trade_date":"2026-09-15","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":1063,"down_count":4156,"up_ratio":20.37,"limit_up":null,"limit_down":null,"limit_net":null,"max_board":null,"seal_rate":null,"yzyj":0.54,"amount_yi":16127,"vol_ratio":0.99,"small_rel":0.04,"breadth_score":20,"limit_net_score":null,"max_board_score":null,"seal_score":null,"yzyj_score":null,"vol_score":49,"small_score":50,"temperature":40,"percentile":16.9,"stage":"修复（偏弱）","created_at":"2026-11-15T12:55:01.609183+08:00","config_version":5,"components":{"vol":{"raw":0.99,"score":49},"yzyj":{"raw":0.54,"score":55},"small":{"raw":0.04,"score":50},"duoban":{"raw":-2.43,"score":31},"breadth":{"raw":20.37,"score":20}},"duoban":-2.43,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":49,"trade_date":"2026-09-14","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":2974,"down_count":2107,"up_ratio":58.53,"limit_up":null,"limit_down":null,"limit_net":null,"max_board":null,"seal_rate":null,"yzyj":3.21,"amount_yi":16292,"vol_ratio":0.826,"small_rel":1.51,"breadth_score":59,"limit_net_score":null,"max_board_score":null,"seal_score":null,"yzyj_score":null,"vol_score":33,"small_score":65,"temperature":60,"percentile":63.1,"stage":"升温","created_at":"2026-11-15T12:55:01.609183+08:00","config_version":5,"components":{"vol":{"raw":0.826,"score":33},"yzyj":{"raw":3.21,"score":82},"small":{"raw":1.51,"score":65},"duoban":{"raw":-0.99,"score":42},"breadth":{"raw":58.53,"score":59}},"duoban":-0.99,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":48,"trade_date":"2026-09-11","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":619,"down_count":4619,"up_ratio":11.82,"limit_up":null,"limit_down":null,"limit_net":null,"max_board":null,"seal_rate":null,"yzyj":1.02,"amount_yi":19719,"vol_ratio":1.197,"small_rel":-1.14,"breadth_score":12,"limit_net_score":null,"max_board_score":null,"seal_score":null,"yzyj_score":null,"vol_score":70,"small_score":39,"temperature":38,"percentile":13.8,"stage":"修复（偏弱）","created_at":"2026-11-15T12:55:01.609183+08:00","config_version":5,"components":{"vol":{"raw":1.197,"score":70},"yzyj":{"raw":1.02,"score":60},"small":{"raw":-1.14,"score":39},"duoban":{"raw":-3.3,"score":24},"breadth":{"raw":11.82,"score":12}},"duoban":-3.3,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":47,"trade_date":"2026-09-10","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":949,"down_count":4243,"up_ratio":18.28,"limit_up":null,"limit_down":null,"limit_net":null,"max_board":null,"seal_rate":null,"yzyj":-0.08,"amount_yi":16471,"vol_ratio":0.888,"small_rel":-0.72,"breadth_score":18,"limit_net_score":null,"max_board_score":null,"seal_score":null,"yzyj_score":null,"vol_score":39,"small_score":43,"temperature":35,"percentile":12.3,"stage":"修复（偏弱）","created_at":"2026-11-15T12:55:01.609183+08:00","config_version":5,"components":{"vol":{"raw":0.888,"score":39},"yzyj":{"raw":-0.08,"score":49},"small":{"raw":-0.72,"score":43},"duoban":{"raw":-2.73,"score":28},"breadth":{"raw":18.28,"score":18}},"duoban":-2.73,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":46,"trade_date":"2026-09-09","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":1762,"down_count":3396,"up_ratio":34.16,"limit_up":null,"limit_down":null,"limit_net":null,"max_board":null,"seal_rate":null,"yzyj":1.2,"amount_yi":18556,"vol_ratio":0.947,"small_rel":-0.47,"breadth_score":34,"limit_net_score":null,"max_board_score":null,"seal_score":null,"yzyj_score":null,"vol_score":45,"small_score":45,"temperature":47,"percentile":43.1,"stage":"修复（偏弱）","created_at":"2026-11-15T12:55:01.609183+08:00","config_version":5,"components":{"vol":{"raw":0.947,"score":45},"yzyj":{"raw":1.2,"score":62},"small":{"raw":-0.47,"score":45},"duoban":{"raw":-0.85,"score":43},"breadth":{"raw":34.16,"score":34}},"duoban":-0.85,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":45,"trade_date":"2026-09-08","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":3305,"down_count":1877,"up_ratio":63.78,"limit_up":null,"limit_down":null,"limit_net":null,"max_board":null,"seal_rate":null,"yzyj":2.82,"amount_yi":19603,"vol_ratio":1.007,"small_rel":0.61,"breadth_score":64,"limit_net_score":null,"max_board_score":null,"seal_score":null,"yzyj_score":null,"vol_score":51,"small_score":56,"temperature":67,"percentile":80.0,"stage":"主升·分歧·高潮","created_at":"2026-11-15T12:55:01.609183+08:00","config_version":5,"components":{"vol":{"raw":1.007,"score":51},"yzyj":{"raw":2.82,"score":78},"small":{"raw":0.61,"score":56},"duoban":{"raw":2.39,"score":69},"breadth":{"raw":63.78,"score":64}},"duoban":2.39,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":44,"trade_date":"2026-09-07","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":3073,"down_count":2016,"up_ratio":60.39,"limit_up":null,"limit_down":null,"limit_net":null,"max_board":null,"seal_rate":null,"yzyj":4.53,"amount_yi":19460,"vol_ratio":0.958,"small_rel":1.07,"breadth_score":60,"limit_net_score":null,"max_board_score":null,"seal_score":null,"yzyj_score":null,"vol_score":46,"small_score":61,"temperature":73,"percentile":93.8,"stage":"主升·分歧·高潮","created_at":"2026-11-15T12:55:01.609183+08:00","config_version":5,"components":{"vol":{"raw":0.958,"score":46},"yzyj":{"raw":4.53,"score":95},"small":{"raw":1.07,"score":61},"duoban":{"raw":2.74,"score":72},"breadth":{"raw":60.39,"score":60}},"duoban":2.74,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":43,"trade_date":"2026-09-04","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":2290,"down_count":2795,"up_ratio":45.03,"limit_up":null,"limit_down":null,"limit_net":null,"max_board":null,"seal_rate":null,"yzyj":-0.63,"amount_yi":20307,"vol_ratio":1.155,"small_rel":-1.04,"breadth_score":45,"limit_net_score":null,"max_board_score":null,"seal_score":null,"yzyj_score":null,"vol_score":66,"small_score":40,"temperature":45,"percentile":36.9,"stage":"修复（偏弱）","created_at":"2026-11-15T12:55:01.609183+08:00","config_version":5,"components":{"vol":{"raw":1.155,"score":66},"yzyj":{"raw":-0.63,"score":44},"small":{"raw":-1.04,"score":40},"duoban":{"raw":-1.23,"score":40},"breadth":{"raw":45.03,"score":45}},"duoban":-1.23,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":42,"trade_date":"2026-09-03","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":1845,"down_count":3300,"up_ratio":35.86,"limit_up":null,"limit_down":null,"limit_net":null,"max_board":null,"seal_rate":null,"yzyj":0.25,"amount_yi":17589,"vol_ratio":0.982,"small_rel":0.08,"breadth_score":36,"limit_net_score":null,"max_board_score":null,"seal_score":null,"yzyj_score":null,"vol_score":48,"small_score":51,"temperature":44,"percentile":29.2,"stage":"修复（偏弱）","created_at":"2026-11-15T12:55:01.609183+08:00","config_version":5,"components":{"vol":{"raw":0.982,"score":48},"yzyj":{"raw":0.25,"score":52},"small":{"raw":0.08,"score":51},"duoban":{"raw":-1.67,"score":37},"breadth":{"raw":35.86,"score":36}},"duoban":-1.67,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":41,"trade_date":"2026-09-02","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":1272,"down_count":3901,"up_ratio":24.59,"limit_up":null,"limit_down":null,"limit_net":null,"max_board":null,"seal_rate":null,"yzyj":-0.59,"amount_yi":17912,"vol_ratio":0.881,"small_rel":0.33,"breadth_score":25,"limit_net_score":null,"max_board_score":null,"seal_score":null,"yzyj_score":null,"vol_score":38,"small_score":53,"temperature":41,"percentile":20.0,"stage":"修复（偏弱）","created_at":"2026-11-15T12:55:01.609183+08:00","config_version":5,"components":{"vol":{"raw":0.881,"score":38},"yzyj":{"raw":-0.59,"score":44},"small":{"raw":0.33,"score":53},"duoban":{"raw":-0.47,"score":46},"breadth":{"raw":24.59,"score":25}},"duoban":-0.47,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":40,"trade_date":"2026-09-01","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":3126,"down_count":2029,"up_ratio":60.64,"limit_up":null,"limit_down":null,"limit_net":null,"max_board":null,"seal_rate":null,"yzyj":1.49,"amount_yi":20334,"vol_ratio":0.954,"small_rel":-0.4,"breadth_score":61,"limit_net_score":null,"max_board_score":null,"seal_score":null,"yzyj_score":null,"vol_score":45,"small_score":46,"temperature":62,"percentile":69.2,"stage":"升温","created_at":"2026-11-15T12:55:01.609183+08:00","config_version":5,"components":{"vol":{"raw":0.954,"score":45},"yzyj":{"raw":1.49,"score":65},"small":{"raw":-0.4,"score":46},"duoban":{"raw":2.98,"score":74},"breadth":{"raw":60.64,"score":61}},"duoban":2.98,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":39,"trade_date":"2026-08-31","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":3021,"down_count":2116,"up_ratio":58.81,"limit_up":null,"limit_down":null,"limit_net":null,"max_board":null,"seal_rate":null,"yzyj":0.68,"amount_yi":21310,"vol_ratio":1.014,"small_rel":0.52,"breadth_score":59,"limit_net_score":null,"max_board_score":null,"seal_score":null,"yzyj_score":null,"vol_score":51,"small_score":55,"temperature":54,"percentile":55.4,"stage":"升温","created_at":"2026-11-15T12:55:01.609183+08:00","config_version":5,"components":{"vol":{"raw":1.014,"score":51},"yzyj":{"raw":0.68,"score":57},"small":{"raw":0.52,"score":55},"duoban":{"raw":-0.51,"score":46},"breadth":{"raw":58.81,"score":59}},"duoban":-0.51,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":38,"trade_date":"2026-08-28","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":2824,"down_count":2306,"up_ratio":55.05,"limit_up":null,"limit_down":null,"limit_net":null,"max_board":null,"seal_rate":null,"yzyj":3.08,"amount_yi":21017,"vol_ratio":0.989,"small_rel":0.09,"breadth_score":55,"limit_net_score":null,"max_board_score":null,"seal_score":null,"yzyj_score":null,"vol_score":49,"small_score":51,"temperature":61,"percentile":67.7,"stage":"升温","created_at":"2026-11-15T12:55:01.609183+08:00","config_version":5,"components":{"vol":{"raw":0.989,"score":49},"yzyj":{"raw":3.08,"score":81},"small":{"raw":0.09,"score":51},"duoban":{"raw":0.46,"score":54},"breadth":{"raw":55.05,"score":55}},"duoban":0.46,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":37,"trade_date":"2026-08-27","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":3224,"down_count":1853,"up_ratio":63.5,"limit_up":null,"limit_down":null,"limit_net":null,"max_board":null,"seal_rate":null,"yzyj":3.02,"amount_yi":21259,"vol_ratio":1.175,"small_rel":1.54,"breadth_score":64,"limit_net_score":null,"max_board_score":null,"seal_score":null,"yzyj_score":null,"vol_score":68,"small_score":65,"temperature":70,"percentile":86.2,"stage":"主升·分歧·高潮","created_at":"2026-11-15T12:55:01.609183+08:00","config_version":5,"components":{"vol":{"raw":1.175,"score":68},"yzyj":{"raw":3.02,"score":80},"small":{"raw":1.54,"score":65},"duoban":{"raw":2.07,"score":67},"breadth":{"raw":63.5,"score":64}},"duoban":2.07,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":36,"trade_date":"2026-08-26","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":2788,"down_count":2343,"up_ratio":54.34,"limit_up":null,"limit_down":null,"limit_net":null,"max_board":null,"seal_rate":null,"yzyj":2.26,"amount_yi":18087,"vol_ratio":0.987,"small_rel":-0.82,"breadth_score":54,"limit_net_score":null,"max_board_score":null,"seal_score":null,"yzyj_score":null,"vol_score":49,"small_score":42,"temperature":59,"percentile":61.5,"stage":"升温","created_at":"2026-11-15T12:55:01.609183+08:00","config_version":5,"components":{"vol":{"raw":0.987,"score":49},"yzyj":{"raw":2.26,"score":73},"small":{"raw":-0.82,"score":42},"duoban":{"raw":0.85,"score":57},"breadth":{"raw":54.34,"score":54}},"duoban":0.85,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":35,"trade_date":"2026-08-25","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":4008,"down_count":1204,"up_ratio":76.9,"limit_up":null,"limit_down":null,"limit_net":null,"max_board":null,"seal_rate":null,"yzyj":0.78,"amount_yi":18318,"vol_ratio":0.912,"small_rel":1.23,"breadth_score":77,"limit_net_score":null,"max_board_score":null,"seal_score":null,"yzyj_score":null,"vol_score":41,"small_score":62,"temperature":65,"percentile":76.9,"stage":"主升·分歧·高潮","created_at":"2026-11-15T12:55:01.609183+08:00","config_version":5,"components":{"vol":{"raw":0.912,"score":41},"yzyj":{"raw":0.78,"score":58},"small":{"raw":1.23,"score":62},"duoban":{"raw":2.98,"score":74},"breadth":{"raw":76.9,"score":77}},"duoban":2.98,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":34,"trade_date":"2026-08-24","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":1421,"down_count":3736,"up_ratio":27.55,"limit_up":null,"limit_down":null,"limit_net":null,"max_board":null,"seal_rate":null,"yzyj":0.67,"amount_yi":20075,"vol_ratio":1.068,"small_rel":-0.31,"breadth_score":28,"limit_net_score":null,"max_board_score":null,"seal_score":null,"yzyj_score":null,"vol_score":57,"small_score":47,"temperature":48,"percentile":46.2,"stage":"修复（偏弱）","created_at":"2026-11-15T12:55:01.609183+08:00","config_version":5,"components":{"vol":{"raw":1.068,"score":57},"yzyj":{"raw":0.67,"score":57},"small":{"raw":-0.31,"score":47},"duoban":{"raw":0.4,"score":53},"breadth":{"raw":27.55,"score":28}},"duoban":0.4,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":33,"trade_date":"2026-08-21","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":2431,"down_count":2663,"up_ratio":47.72,"limit_up":null,"limit_down":null,"limit_net":null,"max_board":null,"seal_rate":null,"yzyj":-0.48,"amount_yi":18793,"vol_ratio":0.904,"small_rel":-0.52,"breadth_score":48,"limit_net_score":null,"max_board_score":null,"seal_score":null,"yzyj_score":null,"vol_score":40,"small_score":45,"temperature":43,"percentile":26.2,"stage":"修复（偏弱）","created_at":"2026-11-15T12:55:01.609183+08:00","config_version":5,"components":{"vol":{"raw":0.904,"score":40},"yzyj":{"raw":-0.48,"score":45},"small":{"raw":-0.52,"score":45},"duoban":{"raw":-1.69,"score":36},"breadth":{"raw":47.72,"score":48}},"duoban":-1.69,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":32,"trade_date":"2026-08-20","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":3974,"down_count":1214,"up_ratio":76.6,"limit_up":null,"limit_down":null,"limit_net":null,"max_board":null,"seal_rate":null,"yzyj":-1.31,"amount_yi":20794,"vol_ratio":0.828,"small_rel":1.12,"breadth_score":77,"limit_net_score":null,"max_board_score":null,"seal_score":null,"yzyj_score":null,"vol_score":33,"small_score":61,"temperature":52,"percentile":52.3,"stage":"升温","created_at":"2026-11-15T12:55:01.609183+08:00","config_version":5,"components":{"vol":{"raw":0.828,"score":33},"yzyj":{"raw":-1.31,"score":37},"small":{"raw":1.12,"score":61},"duoban":{"raw":0.13,"score":51},"breadth":{"raw":76.6,"score":77}},"duoban":0.13,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":31,"trade_date":"2026-08-19","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":429,"down_count":4821,"up_ratio":8.17,"limit_up":null,"limit_down":null,"limit_net":null,"max_board":null,"seal_rate":null,"yzyj":-2.48,"amount_yi":25110,"vol_ratio":1.046,"small_rel":-2.6,"breadth_score":8,"limit_net_score":null,"max_board_score":null,"seal_score":null,"yzyj_score":null,"vol_score":55,"small_score":24,"temperature":19,"percentile":1.5,"stage":"冰点","created_at":"2026-11-15T12:55:01.609183+08:00","config_version":5,"components":{"vol":{"raw":1.046,"score":55},"yzyj":{"raw":-2.48,"score":25},"small":{"raw":-2.6,"score":24},"duoban":{"raw":-5.59,"score":5},"breadth":{"raw":8.17,"score":8}},"duoban":-5.59,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":30,"trade_date":"2026-08-18","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":1865,"down_count":3285,"up_ratio":36.21,"limit_up":null,"limit_down":null,"limit_net":null,"max_board":null,"seal_rate":null,"yzyj":1.23,"amount_yi":24008,"vol_ratio":1.006,"small_rel":-0.01,"breadth_score":36,"limit_net_score":null,"max_board_score":null,"seal_score":null,"yzyj_score":null,"vol_score":51,"small_score":50,"temperature":48,"percentile":46.2,"stage":"修复（偏弱）","created_at":"2026-11-15T12:55:01.609183+08:00","config_version":5,"components":{"vol":{"raw":1.006,"score":51},"yzyj":{"raw":1.23,"score":62},"small":{"raw":-0.01,"score":50},"duoban":{"raw":-1.4,"score":39},"breadth":{"raw":36.21,"score":36}},"duoban":-1.4,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":29,"trade_date":"2026-08-17","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":4101,"down_count":1031,"up_ratio":79.91,"limit_up":null,"limit_down":null,"limit_net":null,"max_board":null,"seal_rate":null,"yzyj":3.52,"amount_yi":23875,"vol_ratio":1.114,"small_rel":0.88,"breadth_score":80,"limit_net_score":null,"max_board_score":null,"seal_score":null,"yzyj_score":null,"vol_score":61,"small_score":59,"temperature":75,"percentile":95.4,"stage":"主升·分歧·高潮","created_at":"2026-11-15T12:55:01.609183+08:00","config_version":5,"components":{"vol":{"raw":1.114,"score":61},"yzyj":{"raw":3.52,"score":85},"small":{"raw":0.88,"score":59},"duoban":{"raw":2.62,"score":71},"breadth":{"raw":79.91,"score":80}},"duoban":2.62,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":28,"trade_date":"2026-08-14","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":2350,"down_count":2753,"up_ratio":46.05,"limit_up":null,"limit_down":null,"limit_net":null,"max_board":null,"seal_rate":null,"yzyj":-0.09,"amount_yi":21428,"vol_ratio":0.84,"small_rel":0.75,"breadth_score":46,"limit_net_score":null,"max_board_score":null,"seal_score":null,"yzyj_score":null,"vol_score":34,"small_score":58,"temperature":47,"percentile":43.1,"stage":"修复（偏弱）","created_at":"2026-11-15T12:55:01.609183+08:00","config_version":5,"components":{"vol":{"raw":0.84,"score":34},"yzyj":{"raw":-0.09,"score":49},"small":{"raw":0.75,"score":58},"duoban":{"raw":-0.41,"score":47},"breadth":{"raw":46.05,"score":46}},"duoban":-0.41,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":27,"trade_date":"2026-08-13","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":1100,"down_count":4091,"up_ratio":21.19,"limit_up":null,"limit_down":null,"limit_net":null,"max_board":null,"seal_rate":null,"yzyj":1.19,"amount_yi":25509,"vol_ratio":1.185,"small_rel":-0.5,"breadth_score":21,"limit_net_score":null,"max_board_score":null,"seal_score":null,"yzyj_score":null,"vol_score":69,"small_score":45,"temperature":47,"percentile":43.1,"stage":"修复（偏弱）","created_at":"2026-11-15T12:55:01.609183+08:00","config_version":5,"components":{"vol":{"raw":1.185,"score":68},"yzyj":{"raw":1.19,"score":62},"small":{"raw":-0.5,"score":45},"duoban":{"raw":-0.76,"score":44},"breadth":{"raw":21.19,"score":21}},"duoban":-0.76,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":26,"trade_date":"2026-08-12","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":3896,"down_count":1236,"up_ratio":75.92,"limit_up":null,"limit_down":null,"limit_net":null,"max_board":null,"seal_rate":null,"yzyj":3.2,"amount_yi":21524,"vol_ratio":0.927,"small_rel":0.82,"breadth_score":76,"limit_net_score":null,"max_board_score":null,"seal_score":null,"yzyj_score":null,"vol_score":43,"small_score":58,"temperature":73,"percentile":93.8,"stage":"主升·分歧·高潮","created_at":"2026-11-15T12:55:01.609183+08:00","config_version":5,"components":{"vol":{"raw":0.927,"score":43},"yzyj":{"raw":3.2,"score":82},"small":{"raw":0.82,"score":58},"duoban":{"raw":3.48,"score":78},"breadth":{"raw":75.92,"score":76}},"duoban":3.48,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":25,"trade_date":"2026-08-11","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":1576,"down_count":3549,"up_ratio":30.75,"limit_up":null,"limit_down":null,"limit_net":null,"max_board":null,"seal_rate":null,"yzyj":0.67,"amount_yi":23210,"vol_ratio":0.92,"small_rel":0.27,"breadth_score":31,"limit_net_score":null,"max_board_score":null,"seal_score":null,"yzyj_score":null,"vol_score":42,"small_score":53,"temperature":47,"percentile":43.1,"stage":"修复（偏弱）","created_at":"2026-11-15T12:55:01.609183+08:00","config_version":5,"components":{"vol":{"raw":0.92,"score":42},"yzyj":{"raw":0.67,"score":57},"small":{"raw":0.27,"score":53},"duoban":{"raw":-0.47,"score":46},"breadth":{"raw":30.75,"score":31}},"duoban":-0.47,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":24,"trade_date":"2026-08-10","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":3924,"down_count":1266,"up_ratio":75.61,"limit_up":null,"limit_down":null,"limit_net":null,"max_board":null,"seal_rate":null,"yzyj":2.22,"amount_yi":25231,"vol_ratio":0.947,"small_rel":0.71,"breadth_score":76,"limit_net_score":null,"max_board_score":null,"seal_score":null,"yzyj_score":null,"vol_score":45,"small_score":57,"temperature":65,"percentile":76.9,"stage":"主升·分歧·高潮","created_at":"2026-11-15T12:55:01.609183+08:00","config_version":5,"components":{"vol":{"raw":0.947,"score":45},"yzyj":{"raw":2.22,"score":72},"small":{"raw":0.71,"score":57},"duoban":{"raw":1.1,"score":59},"breadth":{"raw":75.61,"score":76}},"duoban":1.1,"duoban_score":null,"new_high":null,"new_high_score":null},{"id":23,"trade_date":"2026-08-07","time_slot":"15:30","sh_index":null,"sh_pct":null,"sz_index":null,"sz_pct":null,"hs300_pct":null,"gz2000_pct":null,"up_count":2708,"down_count":2427,"up_ratio":52.74,"limit_up":null,"limit_down":null,"limit_net":null,"max_board":null,"seal_rate":null,"yzyj":1.26,"amount_yi":26644,"vol_ratio":null,"small_rel":null,"breadth_score":53,"limit_net_score":null,"max_board_score":null,"seal_score":null,"yzyj_score":null,"vol_score":null,"small_score":null,"temperature":61,"percentile":67.7,"stage":"升温","created_at":"2026-11-15T12:55:01.609183+08:00","config_version":5,"components":{"yzyj":{"raw":1.26,"score":63},"duoban":{"raw":2.08,"score":67},"breadth":{"raw":52.74,"score":53}},"duoban":2.08,"duoban_score":null,"new_high":null,"new_high_score":null}];
 
-  // 量能分 = clamp(50 + (今日/昨日 - 1)*100, 0, 100)
+  // ---- 常量 ----
+  var SLOT_LABEL = {'08:00':'盘前','10:00':'早盘','12:00':'午间','14:00':'尾盘','15:30':'收盘'};
+
+  var allRows = [];   // 全部快照
+  var current = null; // 当前选中快照
+  var modelConfig = null; // 模型配置（分量/权重/阈值）
+
+  function fmtDate(s){ return String(s||'').slice(0,10); }
+
+  function status(t){ document.getElementById('statusLine').textContent = t; }
+
+  // ---- 模型配置（从 sentiment_config 读，唯一事实来源）----
+  var SCORE_COLS = {breadth:'breadth_score', limit_net:'limit_net_score', max_board:'max_board_score', seal:'seal_score', yzyj:'yzyj_score', duoban:'duoban_score', vol:'vol_score', small:'small_score', newhigh:'new_high_score'};
+
+  function loadConfig(){
+    modelConfig = STATIC_CONFIG;
+    return Promise.resolve(modelConfig);
+  }
+
+  function getComponents(){
+    if(modelConfig && modelConfig.components && modelConfig.components.length) return modelConfig.components;
+    return [
+      {key:'yzyj', name:'昨涨停溢价', group:'赚钱效应', weight:0.20, field:'yzyj', a:10, b:50, desc:'昨日涨停指数880863当日涨跌幅'},
+      {key:'duoban', name:'昨多板强度', group:'赚钱效应', weight:0.18, field:'duoban', a:8, b:50, desc:'最近多板指数880785当日涨跌幅'},
+      {key:'seal', name:'封板强度', group:'赚钱效应', weight:0.08, field:'seal_rate', a:2.5, b:-107.5, desc:'封住数/曾涨停数(中性锚63%)'},
+      {key:'max_board', name:'最高连板', group:'赚钱效应', weight:0.06, field:'max_board', a:10, b:0, desc:'当日最高连续涨停高度'},
+      {key:'breadth', name:'个股广度', group:'盘面温度', weight:0.14, field:'up_ratio', a:1, b:0, desc:'全A上涨家数/(上涨+下跌)'},
+      {key:'limit_net', name:'涨停净额', group:'盘面温度', weight:0.13, field:'limit_net', a:0.5, b:50, desc:'涨停家数−跌停家数'},
+      {key:'vol', name:'成交量能', group:'动能结构', weight:0.06, field:'vol_ratio', a:100, b:-50, desc:'全A成交额/昨日成交额'},
+      {key:'newhigh', name:'百日新高', group:'动能结构', weight:0.07, field:'new_high', a:0.25, b:0, desc:'当日创100日新高家数'},
+      {key:'small', name:'小盘相对', group:'动能结构', weight:0.08, field:'small_rel', a:10, b:50, desc:'国证2000涨跌幅−沪深300涨跌幅'}
+    ];
+  }
+
+  function getThresholds(){
+    if(modelConfig && modelConfig.thresholds && modelConfig.thresholds.length) return modelConfig.thresholds;
+    return [
+      {min:0, max:35, stage:'冰点', color:'#3b82f6'},
+      {min:35, max:50, stage:'修复（偏弱）', color:'#10b981'},
+      {min:50, max:65, stage:'升温', color:'#f59e0b'},
+      {min:65, max:100, stage:'主升·分歧·高潮', color:'#f97316'}
+    ];
+  }
+
+  function compScore(c, key){
+    if(c.components && c.components[key] && c.components[key].score != null && c.components[key].score !== ''){
+      return Number(c.components[key].score);
+    }
+    var col = SCORE_COLS[key];
+    return (col && c[col] != null) ? Number(c[col]) : null;
+  }
+
+  function rawText(c, comp){
+    var v = c[comp.field];
+    if(v === null || v === undefined || v === '') return '—';
+    var f = comp.field;
+    if(f === 'max_board') return v + ' 板';
+    if(f === 'vol_ratio') return num(v) + ' 倍';
+    if(f === 'limit_net') return (v>0?'+':'') + v + '（' + num(c.limit_up) + '−' + num(c.limit_down) + '）';
+    if(f === 'up_ratio' || f === 'seal_rate' || f === 'yzyj' || f === 'small_rel' || f === 'duoban') return num(v) + '%';
+    if(f === 'new_high') return v + ' 家';
+    return num(v);
+  }
+
+  // ---- 加载数据 ----
+  function loadData(){
+    status('正在加载静态快照…');
+    allRows = STATIC_ROWS;
+    if(!allRows.length){
+      status('暂无快照数据');
+      renderEmpty();
+      return;
+    }
+    // 默认显示最新收盘快照（15:30）
+    current = allRows[0] || null;
+    render();
+    stampRefresh();
+    status('已加载 ' + allRows.length + ' 个交易日收盘快照 · 最新 ' + fmtDate(current.trade_date) + '（收盘 15:30）· 静态数据版');
+  }
+
+  function renderEmpty(){
+    document.getElementById('summaryBox').innerHTML = '<div class="empty-tip">暂无快照数据</div>';
+    document.getElementById('thermoBox').innerHTML = '<div class="empty-tip">暂无数据</div>';
+    document.getElementById('methodTable').innerHTML = '<div class="empty-tip">暂无数据</div>';
+  }
+
+  // ---- 工具 ----
   function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
-  var volScore = [];
-  for (var i=0;i<amount.length;i++){
-    if (i===0){ volScore.push(null); continue; }
-    volScore.push(clamp(50 + (amount[i]/amount[i-1]-1)*100, 0, 100));
+  function num(v, d){ v = Number(v); return (v===null || v===undefined || isNaN(v)) ? (d==null?'—':d) : v; }
+  function pctClass(v){ v = Number(v); if(v>0) return 'red'; if(v<0) return 'green'; return ''; }
+  function fmtPct(v){ v = Number(v); return (v>0?'+':'') + v + '%'; }
+
+  // ---- 渲染 ----
+  function render(){
+    if(!current){
+      renderEmpty();
+      return;
+    }
+    renderSummary();
+    renderThermo();
+    renderLine();
+    renderBars();
+    renderTable();
+    // 副标题
+    var slotLabel = SLOT_LABEL[current.time_slot] || current.time_slot;
+    document.getElementById('subtitle').textContent =
+      '当前快照：' + fmtDate(current.trade_date) + ' ' + current.time_slot + '（' + slotLabel + '）· 数据来源：通达信实时行情 + 公开涨停复盘';
   }
-  // 情绪分代理 = 0.6*广度 + 0.4*量能
-  var proxy = [];
-  for (var j=0;j<dates.length;j++){
-    if (volScore[j]===null){ proxy.push(null); continue; }
-    proxy.push(+(0.6*breadth[j] + 0.4*volScore[j]).toFixed(1));
+
+  function renderSummary(){
+    var c = current;
+    var shPct = Number(c.sh_pct), szPct = Number(c.sz_pct);
+    var up = c.up_count, down = c.down_count;
+    var lu = c.limit_up, ld = c.limit_down;
+    var html = '';
+    html += statHtml('上证指数', num(c.sh_index), fmtPct(shPct), pctClass(shPct));
+    html += statHtml('深证成指', num(c.sz_index), fmtPct(szPct), pctClass(szPct));
+    html += statHtml('全A涨跌家数', (up!=null&&down!=null) ? (up + ' / ' + down) : '—',
+      '上涨占比 ' + num(c.up_ratio) + '%', '');
+    html += statHtml('涨停 / 跌停', (lu!=null&&ld!=null) ? (lu + ' / ' + ld) : '—',
+      '净额 ' + (c.limit_net>0?'+':'') + num(c.limit_net) + ' · 最高 ' + num(c.max_board) + ' 连板', '');
+    document.getElementById('summaryBox').innerHTML = html;
+  }
+  function statHtml(k, v, d, vcls){
+    var dcls = (d.indexOf('+')===0) ? 'red' : (d.indexOf('-')===0 ? 'green' : '');
+    return '<div class="stat"><div class="k">'+k+'</div><div class="v '+vcls+'">'+v+'</div><div class="d '+dcls+'">'+d+'</div></div>';
   }
 
-  // 当日全口径温度读数（用于参考线）
-  var todayTemp = 36;
+  function renderThermo(){
+    var c = current;
+    var t = Number(c.temperature);
+    var box = document.getElementById('thermoBox');
+    if(t===null || t===undefined || isNaN(t)){
+      box.innerHTML = '<div class="empty-tip">该时点暂无温度数据</div>';
+      return;
+    }
+    var left = clamp(t, 0, 100);
+    var stage = c.stage || stageOf(t);
+    var stageBg = stageColor(t);
+    var percentile = c.percentile;
+    var meta = '历史分位 ≈ ' + (percentile!=null ? percentile + '%' : '—') + '（近60日九分量温度）';
+    if(c.amount_yi != null) meta += ' · 全A成交额 ' + num(c.amount_yi) + ' 亿';
+    var note = noteOf(c);
+    var th = getThresholds();
+    var segsHtml = '', ticksHtml = '';
+    th.forEach(function(x){
+      segsHtml += '<div class="seg" style="flex:' + (x.max - x.min) + ';background:' + x.color + ';">' + x.stage + ' ' + x.min + '–' + x.max + '</div>';
+    });
+    th.forEach(function(x){
+      ticksHtml += '<span class="tick" style="left:' + x.min + '%;">' + x.min + '</span>';
+    });
+    ticksHtml += '<span class="tick" style="left:100%;">100</span>';
+    box.innerHTML =
+      '<div class="thermo">' +
+        '<div class="marker" style="left:' + left + '%;"></div>' +
+        '<div class="band">' + segsHtml + '</div>' +
+        '<div class="ticks">' + ticksHtml + '</div>' +
+      '</div>' +
+      '<div class="reading">' +
+        '<span class="big">' + Math.round(t) + '</span>' +
+        '<span class="stage" style="background:' + stageBg + ';">' + stage + '</span>' +
+        '<span class="meta">' + meta + '</span>' +
+      '</div>' +
+      (note ? '<p class="note" style="margin-top:10px;">' + note + '</p>' : '');
+  }
+  function stageOf(t){
+    var th = getThresholds();
+    for(var i=0;i<th.length;i++){ if(t >= th[i].min && t < th[i].max) return th[i].stage; }
+    return th[th.length-1].stage;
+  }
+  function stageColor(t){
+    var th = getThresholds();
+    for(var i=0;i<th.length;i++){ if(t >= th[i].min && t < th[i].max) return th[i].color; }
+    return th[th.length-1].color;
+  }
+  function noteOf(c){
+    var parts = [];
+    if(c.up_ratio != null) parts.push('上涨广度 ' + num(c.up_ratio) + '%');
+    if(c.limit_up != null && c.limit_down != null) parts.push('涨停/跌停 ' + c.limit_up + ' vs ' + c.limit_down);
+    if(c.yzyj != null && Number(c.yzyj) < 0) parts.push('<b>昨涨停溢价转负（' + num(c.yzyj) + '%）</b>');
+    if(c.duoban != null && Number(c.duoban) < 0) parts.push('<b>昨多板强度转负（' + num(c.duoban) + '%）</b>');
+    if(c.small_rel != null && Number(c.small_rel) < 0) parts.push('小盘跑输沪深300（' + num(c.small_rel) + ' pp）');
+    if(!parts.length) return '';
+    return '读数 ' + Math.round(Number(c.temperature)) + '：' + parts.join('、') + '。';
+  }
 
-  // ---- 折线图 ----
-  var lineChart = echarts.init(document.getElementById('lineChart'));
-  lineChart.setOption({
-    tooltip:{ trigger:'axis', formatter:function(ps){
-      var i = ps[0].dataIndex;
-      var s = dates[i] + '<br/>情绪分(代理): ' + (proxy[i]==null?'-':proxy[i]);
-      s += '<br/>上涨广度: ' + breadth[i].toFixed(1) + '%';
-      s += '<br/>成交额: ' + amount[i] + ' 亿';
-      return s;
-    }},
-    grid:{ left:48, right:20, top:20, bottom:34 },
-    xAxis:{ type:'category', data:dates, boundaryGap:false, axisLabel:{ fontSize:10, rotate:30 } },
-    yAxis:{ type:'value', min:0, max:100, name:'情绪分', axisLabel:{ fontSize:11 } },
-    series:[{
-      name:'情绪分(代理)', type:'line', data:proxy, smooth:true, connectNulls:false,
-      lineStyle:{ width:2.5, color:'#3b82f6' },
-      itemStyle:{ color:'#3b82f6' },
-      areaStyle:{ color:'rgba(59,130,246,0.12)' },
-      markLine:{ silent:true, symbol:'none', label:{ formatter:'当日全口径温度 {c}', position:'insideEndTop', fontSize:11, color:'#ef4444' },
-        lineStyle:{ color:'#ef4444', type:'dashed' }, data:[{ yAxis: todayTemp }] },
-      markPoint:{ symbol:'circle', symbolSize:9, data:[{ coord:[dates.length-1, proxy[dates.length-1]], itemStyle:{ color:'#10b981', borderColor:'#fff', borderWidth:2 } }] }
-    }]
+  function renderLine(){
+    var chartEl = document.getElementById('lineChart');
+    if(window._lineChart){ window._lineChart.dispose(); }
+    // 收盘快照序列（15:30），取最近 60 个交易日
+    var closeRows = allRows.filter(function(r){ return r.time_slot === '15:30'; })
+      .sort(function(a,b){ return fmtDate(a.trade_date) < fmtDate(b.trade_date) ? -1 : 1; });
+    closeRows = closeRows.slice(-60);
+    var dates = [], temps = [], stages = [], breadths = [];
+    closeRows.forEach(function(r){
+      dates.push(fmtDate(r.trade_date).slice(5));
+      var t = Number(r.temperature);
+      temps.push((t===null || isNaN(t)) ? null : t);
+      stages.push(r.stage || '');
+      breadths.push(r.up_ratio==null ? null : Number(r.up_ratio));
+    });
+
+    var chart = echarts.init(chartEl);
+    window._lineChart = chart;
+    var option = {
+      tooltip:{ trigger:'axis', formatter:function(ps){
+        var i = ps[0].dataIndex;
+        var s = dates[i] + '<br/>情绪温度: ' + (temps[i]==null?'-':temps[i]) + (stages[i] ? '（' + stages[i] + '）' : '');
+        if(breadths[i] != null) s += '<br/>上涨广度: ' + breadths[i].toFixed(1) + '%';
+        return s;
+      }},
+      grid:{ left:48, right:20, top:20, bottom:58 },
+      xAxis:{ type:'category', data:dates, boundaryGap:false, axisLabel:{ fontSize:10, interval:'auto' } },
+      yAxis:{ type:'value', min:0, max:100, name:'情绪温度', axisLabel:{ fontSize:11 } },
+      dataZoom:[
+        { type:'slider', start:0, end:100, bottom:8, height:22, borderColor:'transparent',
+          backgroundColor:'#f1f5f9', fillerColor:'rgba(59,130,246,0.16)',
+          handleStyle:{ color:'#3b82f6' }, moveHandleStyle:{ color:'#3b82f6' },
+          textStyle:{ fontSize:10 }, showDetail:true },
+        { type:'inside', start:0, end:100 }
+      ],
+      series:[{
+        name:'情绪温度', type:'line', data:temps, smooth:true, connectNulls:false,
+        lineStyle:{ width:2.5, color:'#3b82f6' },
+        itemStyle:{ color:'#3b82f6' },
+        areaStyle:{ color:'rgba(59,130,246,0.12)' },
+        markPoint:{ symbol:'circle', symbolSize:9, data:[{ coord:[dates.length-1, temps[dates.length-1]], itemStyle:{ color:'#10b981', borderColor:'#fff', borderWidth:2 } }] }
+      }]
+    };
+    chart.setOption(option);
+    document.getElementById('lineSrc').textContent =
+      '数据来源：通达信 + 九分量模型（近 ' + dates.length + ' 个交易日收盘快照 15:30），最新 ' + dates[dates.length-1] + '。';
+  }
+
+  function renderBars(){
+    var c = current;
+    var chartEl = document.getElementById('barChart');
+    if(window._barChart){ window._barChart.dispose(); }
+    var comps = getComponents();
+    var compNames = comps.map(function(x){ return x.name; });
+    var compScores = comps.map(function(x){ return compScore(c, x.key); });
+    var compRaws = comps.map(function(x){ return rawText(c, x); });
+    var colors = compScores.map(function(v){ return (v==null || isNaN(Number(v))) ? '#9ca3af' : stageColor(Number(v)); });
+
+    var chart = echarts.init(chartEl);
+    window._barChart = chart;
+    chart.setOption({
+      tooltip:{ trigger:'axis', axisPointer:{ type:'shadow' }, formatter:function(ps){
+        var i = ps[0].dataIndex;
+        return compNames[i] + '：情绪分 ' + (compScores[i]==null?'—':compScores[i]) + '（' + compRaws[i] + '）';
+      }},
+      grid:{ left:90, right:70, top:10, bottom:30 },
+      xAxis:{ type:'value', min:0, max:100, axisLabel:{ fontSize:11 } },
+      yAxis:{ type:'category', data:compNames, axisLabel:{ fontSize:12 } },
+      series:[{
+        type:'bar',
+        data: compScores.map(function(v,i){ return { value:(v==null?0:v), itemStyle:{ color:colors[i], borderRadius:[0,5,5,0] } }; }),
+        barWidth:'58%',
+        label:{ show:true, position:'right', fontSize:11, formatter:function(p){ return compRaws[p.dataIndex]; } }
+      }]
+    });
+  }
+
+  function renderTable(){
+    var c = current;
+    var comps = getComponents();
+    var groups = {}, order = [];
+    comps.forEach(function(x){
+      var g = x.group || '其他';
+      if(!groups[g]){ groups[g] = []; order.push(g); }
+      groups[g].push(x);
+    });
+    var html = '<table><thead><tr><th>分类</th><th>分量</th><th>权重</th><th>原始值</th><th>情绪分</th><th>计算方法</th></tr></thead><tbody>';
+    order.forEach(function(g){
+      var list = groups[g];
+      var gw = list.reduce(function(s,x){ return s + (x.weight||0); }, 0);
+      html += '<tr style="background:#f0f4fa;"><td colspan="6" style="font-weight:700;color:#3b82f6;">' + g + '（合计 ' + Math.round(gw*100) + '%）</td></tr>';
+      list.forEach(function(x){
+        var score = compScore(c, x.key);
+        var t = tagOf(score);
+        html += '<tr><td>' + groupTag(g) + '</td><td>' + x.name + ' <span class="tag ' + t.cls + '">' + t.label + '</span></td>' +
+          '<td class="num">' + Math.round(x.weight*100) + '%</td>' +
+          '<td>' + rawText(c, x) + '</td>' +
+          '<td class="num">' + (score==null?'—':score) + '</td>' +
+          '<td>' + (x.desc || '') + '</td></tr>';
+      });
+    });
+    html += '</tbody></table>';
+    html += '<p class="note" style="margin-top:10px;">合成：情绪温度 = Σ（分量情绪分 × 权重）。各分量情绪分为 0–100 映射值（score = clamp(a×原始值+b, 0, 100)）。模型版本 ' + (modelConfig && modelConfig.version ? modelConfig.version : '—') + '。</p>';
+    document.getElementById('methodTable').innerHTML = html;
+  }
+  function tagOf(v){
+    v = Number(v);
+    if(v===null || isNaN(v)) return { label:'无数据', cls:'x' };
+    if(v<25) return { label:'极弱', cls:'b' };
+    if(v<40) return { label:'偏弱', cls:'g' };
+    if(v<55) return { label:'中性', cls:'y' };
+    return { label:'偏强', cls:'o' };
+  }
+  function groupTag(g){
+    var m = {'赚钱效应':'#ef4444','盘面温度':'#3b82f6','动能结构':'#f97316'};
+    var c = m[g] || '#64748b';
+    return '<span style="display:inline-block;padding:1px 8px;border-radius:10px;font-size:11px;font-weight:600;color:' + c + ';background:' + c + '1a;">' + g + '</span>';
+  }
+
+  // ---- 自动刷新 ----
+  var AUTO_INTERVAL = 60 * 1000;
+  var autoOn = true;
+  var autoTimer = null;
+
+  function onAutoToggle(){
+    autoOn = document.getElementById('autoSwitch').checked;
+    document.getElementById('autoLabel').textContent = autoOn ? '自动刷新（60s）' : '已关闭';
+    status(autoOn ? '自动刷新已开启，每 60 秒拉取最新快照' : '自动刷新已关闭');
+  }
+
+  function stampRefresh(){
+    var t = new Date();
+    var hh = ('0'+t.getHours()).slice(-2);
+    var mm = ('0'+t.getMinutes()).slice(-2);
+    var ss = ('0'+t.getSeconds()).slice(-2);
+    document.getElementById('lastRefresh').textContent = '上次更新 ' + hh + ':' + mm + ':' + ss;
+  }
+
+  function startAutoRefresh(){
+    autoTimer = setInterval(function(){
+      if(!autoOn) return;
+      loadData();
+    }, AUTO_INTERVAL);
+  }
+
+  // ---- 启动 ----
+  loadConfig().then(function(){
+    loadData();
+    startAutoRefresh();
   });
-
-  // ---- 七分量柱状图 ----
-  var compNames = ['个股广度','涨停净额','最高连板','封板强度','昨溢价','成交量能','小盘相对'];
-  var compScores = [14,54,50,68,35,36,30];
-  var compRaws = ['上涨 14.4%','+4（38−34）','4 板','≈68%（估）','−1.54%','0.857 倍','−2.04 pp'];
-  var compColors = ['#3b82f6','#f59e0b','#f59e0b','#f97316','#10b981','#10b981','#10b981'];
-
-  var barChart = echarts.init(document.getElementById('barChart'));
-  barChart.setOption({
-    tooltip:{ trigger:'axis', axisPointer:{ type:'shadow' }, formatter:function(ps){
-      var i = ps[0].dataIndex;
-      return compNames[i] + '：情绪分 ' + compScores[i] + '（' + compRaws[i] + '）';
-    }},
-    grid:{ left:90, right:60, top:10, bottom:30 },
-    xAxis:{ type:'value', min:0, max:100, axisLabel:{ fontSize:11 } },
-    yAxis:{ type:'category', data:compNames, axisLabel:{ fontSize:12 } },
-    series:[{
-      type:'bar', data: compScores.map(function(v,i){ return { value:v, itemStyle:{ color:compColors[i], borderRadius:[0,5,5,0] } }; }),
-      barWidth:'58%',
-      label:{ show:true, position:'right', fontSize:11, formatter:function(p){ return compRaws[p.dataIndex]; } }
-    }]
-  });
-
-  window.addEventListener('resize', function(){ lineChart.resize(); barChart.resize(); });
 })();
 </script>
 </body>
