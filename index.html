@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>情绪指标·温度计 2026-11-13 收盘</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<style>
+  :root{
+    --bg:#f6f7f9; --card:#ffffff; --ink:#1f2937; --sub:#6b7280; --line:#e5e7eb;
+    --blue:#3b82f6; --green:#10b981; --yellow:#f59e0b; --orange:#f97316; --gray:#9ca3af;
+    --red:#ef4444;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--bg); color:var(--ink); font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif; line-height:1.6; padding:24px 16px;}
+  .wrap{max-width:960px; margin:0 auto;}
+  h1{font-size:22px; font-weight:700; margin-bottom:6px;}
+  .subtitle{color:var(--red); font-size:13px; margin-bottom:20px;}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:20px; margin-bottom:16px; box-shadow:0 1px 2px rgba(0,0,0,.04);}
+  .card h2{font-size:16px; font-weight:700; margin-bottom:14px; padding-left:10px; border-left:4px solid var(--blue);}
+  /* 摘要卡 */
+  .summary{display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:16px;}
+  .stat{background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px;}
+  .stat .k{font-size:12px; color:var(--sub); margin-bottom:6px;}
+  .stat .v{font-size:20px; font-weight:700;}
+  .stat .d{font-size:11px; color:var(--sub); margin-top:4px;}
+  .red{color:var(--red);} .green{color:#059669;}
+  /* 温度计 */
+  .thermo{position:relative;}
+  .band{position:relative; height:44px; border-radius:22px; overflow:hidden; display:flex;}
+  .band .seg{flex:1; display:flex; align-items:center; justify-content:center; font-size:12px; color:#fff; font-weight:600;}
+  .seg.s1{flex:2.5; background:var(--blue);}
+  .seg.s2{flex:1.5; background:var(--green);}
+  .seg.s3{flex:1.5; background:var(--yellow);}
+  .seg.s4{flex:4.5; background:var(--orange);}
+  .ticks{position:relative; height:22px; margin-top:4px; font-size:11px; color:var(--sub);}
+  .tick{position:absolute; transform:translateX(-50%); top:0;}
+  .marker{position:absolute; top:-14px; width:0; height:0; border-left:11px solid transparent; border-right:11px solid transparent; border-top:16px solid #111827; z-index:3; transition:left .3s;}
+  .reading{margin-top:18px; display:flex; align-items:baseline; flex-wrap:wrap; gap:14px;}
+  .reading .big{font-size:40px; font-weight:800; color:#111827;}
+  .reading .stage{font-size:18px; font-weight:700; padding:4px 14px; border-radius:20px; color:#fff; background:var(--green);}
+  .reading .meta{font-size:13px; color:var(--sub);}
+  .chart{width:100%; height:340px;}
+  .chart.small{height:300px;}
+  /* 表格 */
+  table{width:100%; border-collapse:collapse; font-size:13px;}
+  th,td{padding:9px 10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top;}
+  th{background:#fafafa; font-weight:600; color:var(--sub);}
+  td.num{text-align:right; font-variant-numeric:tabular-nums;}
+  .tag{display:inline-block; padding:1px 8px; border-radius:10px; font-size:11px; color:#fff; font-weight:600;}
+  .tag.b{background:var(--blue);} .tag.g{background:var(--green);} .tag.y{background:var(--yellow);} .tag.o{background:var(--orange);} .tag.x{background:var(--gray);}
+  .note{font-size:12px; color:var(--sub);}
+  .note p{margin-bottom:6px;}
+  .src{font-size:11px; color:#9ca3af; margin-top:8px;}
+  .disc{font-size:11px; color:#9ca3af; border-top:1px dashed var(--line); padding-top:10px; margin-top:10px;}
+  @media(max-width:640px){ .summary{grid-template-columns:repeat(2,1fr);} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>情绪指标 · 盘中温度计</h1>
+  <div class="subtitle">2026-11-13（周五）收盘口径 · 数据来源：通达信（实时行情 + 涨停/跌停池 + 指数日线）</div>
+
+  <!-- 摘要卡 -->
+  <div class="summary">
+    <div class="stat">
+      <div class="k">上证指数</div>
+      <div class="v green">3634.35</div>
+      <div class="d green">-0.59%</div>
+    </div>
+    <div class="stat">
+      <div class="k">深证成指</div>
+      <div class="v green">10968.79</div>
+      <div class="d green">-2.05%</div>
+    </div>
+    <div class="stat">
+      <div class="k">全A涨跌家数</div>
+      <div class="v">755 / 4472</div>
+      <div class="d">上涨占比 14.4%</div>
+    </div>
+    <div class="stat">
+      <div class="k">涨停 / 跌停</div>
+      <div class="v">38 / 34</div>
+      <div class="d">净额 +4 · 最高 4 连板</div>
+    </div>
+  </div>
+
+  <!-- 温度计 -->
+  <div class="card">
+    <h2>情绪温度（0–100）</h2>
+    <div class="thermo">
+      <div class="marker" id="marker" style="left:38%;"></div>
+      <div class="band">
+        <div class="seg s1">冰点 0–25</div>
+        <div class="seg s2">修复 25–40</div>
+        <div class="seg s3">升温 40–55</div>
+        <div class="seg s4">主升·分歧·高潮 55–100</div>
+      </div>
+      <div class="ticks">
+        <span class="tick" style="left:0%;">0</span>
+        <span class="tick" style="left:25%;">25</span>
+        <span class="tick" style="left:40%;">40</span>
+        <span class="tick" style="left:55%;">55</span>
+        <span class="tick" style="left:100%;">100</span>
+      </div>
+    </div>
+    <div class="reading">
+      <span class="big">38</span>
+      <span class="stage">修复（偏弱）</span>
+      <span class="meta">历史分位 ≈ 20%（近22个交易日） · 较 11-12 小幅回落 · 全A成交额 1.66万亿</span>
+    </div>
+    <p class="note" style="margin-top:10px;">读数 38 落在「修复」区间（25–40）下沿，情绪偏弱、临近冰点：上涨广度仅 14.4%、涨停与跌停几乎打平（38 vs 34）、小盘（国证2000 -2.72%）明显跑输沪深300（-0.68%）。</p>
+  </div>
+
+  <!-- 近22日情绪分 -->
+  <div class="card">
+    <h2>近 22 个交易日情绪分（广度 × 量能合成代理）</h2>
+    <div class="chart" id="lineChart"></div>
+    <p class="note">说明：历史曲线为「全A上涨广度（60%）+ 全A成交额环比（40%）」合成代理，用于看趋势与分位；不含涨停/连板/封板等短线程式化分量（该部分历史数据未在本次数据源覆盖），故曲线读数低于上方全口径温度。当日全口径温度以顶部色带读数为准。</p>
+    <div class="src">数据来源：通达信（上证指数、深证成指日线 up/down 家数与成交额），2026-11-13 收盘。</div>
+  </div>
+
+  <!-- 七分量 -->
+  <div class="card">
+    <h2>七个分量情绪分（0–100）</h2>
+    <div class="chart small" id="barChart"></div>
+  </div>
+
+  <!-- 方法表 -->
+  <div class="card">
+    <h2>各分量权重、今日原始值与计算方法</h2>
+    <table>
+      <thead>
+        <tr><th>分量</th><th>权重</th><th>今日原始值</th><th>情绪分</th><th>计算方法</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>个股广度 <span class="tag b">冰点</span></td><td class="num">15%</td><td>上涨占比 14.4%</td><td class="num">14</td><td>全A上涨家数 /（上涨+下跌）家数；755/5227</td></tr>
+        <tr><td>涨停净额 <span class="tag y">中性</span></td><td class="num">10%</td><td>+4（38 − 34）</td><td class="num">54</td><td>涨停家数 − 跌停家数；50 + 净额</td></tr>
+        <tr><td>最高连板 <span class="tag y">中性</span></td><td class="num">10%</td><td>4 板（天普股份）</td><td class="num">50</td><td>当日最高连续涨停高度（东财涨停池口径）</td></tr>
+        <tr><td>封板强度 <span class="tag o">偏暖</span></td><td class="num">15%</td><td>封板率 ≈ 68%（估）</td><td class="num">68</td><td>收盘封住数 / 盘中曾涨停数；炸板数未直接覆盖，为估算</td></tr>
+        <tr><td>昨溢价 <span class="tag x">未覆盖</span></td><td class="num">10%</td><td>未覆盖</td><td class="num">50</td><td>昨日涨停股今日平均溢价；当前数据源未覆盖，按中性 50 占位</td></tr>
+        <tr><td>成交量能 <span class="tag g">缩量</span></td><td class="num">15%</td><td>0.857 倍</td><td class="num">36</td><td>全A成交额 1.66万亿 / 昨日 1.93万亿</td></tr>
+        <tr><td>小盘相对 <span class="tag g">跑输</span></td><td class="num">15%</td><td>−2.04 pp</td><td class="num">30</td><td>国证2000（-2.72%）− 沪深300（-0.68%）</td></tr>
+      </tbody>
+    </table>
+    <p class="note" style="margin-top:10px;">合成：情绪温度 = Σ（分量情绪分 × 权重）≈ 37.6，四舍五入显示 38。各分量情绪分为 0–100 映射值（非历史分位；历史分位需更长序列，本次仅广度/量能可回算）。</p>
+  </div>
+
+  <!-- 底部注释 -->
+  <div class="card">
+    <h2>阶段划分与阈值</h2>
+    <div class="note">
+      <p>① <b>冰点（0–25）</b>：广度极低、涨停萎缩、跌停增多，情绪见底，多对应左侧或超跌反弹窗口。</p>
+      <p>② <b>修复（25–40）</b>：情绪自冰点回升、涨停修复但量能未有效放大，属弱修复。</p>
+      <p>③ <b>升温（40–55）</b>：涨停扩散、连板高度抬升、量能温和放大，赚钱效应改善。</p>
+      <p>④ <b>主升·分歧·高潮（55–100）</b>：连板高度高、封板率高、小盘显著占优，情绪亢奋，注意高位兑现风险。</p>
+      <p style="margin-top:8px;"><b>阈值链</b>：主升（55–100）&gt; 升温（40–55）&gt; 修复（25–40）&gt; 冰点（&lt;25）。</p>
+    </div>
+    <div class="disc">
+      <b>免责声明</b>：以上内容基于公开数据和量化分析，仅供参考，不构成投资建议。市场有风险，投资需谨慎。任何投资决策应结合个人风险承受能力、资金状况和投资目标独立判断，必要时咨询持牌专业机构。过往表现不预示未来收益。<br>
+      数据口径：本页为收盘口径（非盘中估算）；「个股广度」「成交量能」可直接回算，历史曲线为两因子代理；「封板强度」为估算、「昨溢价」未覆盖，已在表中标注。
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  // ---- 数据（来源：通达信，2026-10-15 ~ 2026-11-13 共22个交易日）----
+  var dates = ['10-15','10-16','10-19','10-20','10-21','10-22','10-23','10-26','10-27','10-28','10-29','10-30','11-02','11-03','11-04','11-05','11-06','11-09','11-10','11-11','11-12','11-13'];
+  // 全A上涨占比（%）：沪市 up/down + 深市 up/down
+  var breadth = [7.66,60.42,43.52,67.03,38.88,8.55,82.28,41.03,11.32,76.39,14.61,16.89,84.86,40.28,85.08,88.10,13.92,40.69,78.56,67.08,16.19,14.44];
+  // 全A成交额（亿元）：沪市 Amount + 深市 Amount
+  var amount  = [16330,15554,14375,14561,14294,15287,19563,16088,14609,16285,15565,16744,17837,17034,20377,21179,16578,14826,15049,16763,19320,16557];
+
+  // 量能分 = clamp(50 + (今日/昨日 - 1)*100, 0, 100)
+  function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+  var volScore = [];
+  for (var i=0;i<amount.length;i++){
+    if (i===0){ volScore.push(null); continue; }
+    volScore.push(clamp(50 + (amount[i]/amount[i-1]-1)*100, 0, 100));
+  }
+  // 情绪分代理 = 0.6*广度 + 0.4*量能
+  var proxy = [];
+  for (var j=0;j<dates.length;j++){
+    if (volScore[j]===null){ proxy.push(null); continue; }
+    proxy.push(+(0.6*breadth[j] + 0.4*volScore[j]).toFixed(1));
+  }
+
+  // 当日全口径温度读数（用于参考线）
+  var todayTemp = 38;
+
+  // ---- 折线图 ----
+  var lineChart = echarts.init(document.getElementById('lineChart'));
+  lineChart.setOption({
+    tooltip:{ trigger:'axis', formatter:function(ps){
+      var i = ps[0].dataIndex;
+      var s = dates[i] + '<br/>情绪分(代理): ' + (proxy[i]==null?'-':proxy[i]);
+      s += '<br/>上涨广度: ' + breadth[i].toFixed(1) + '%';
+      s += '<br/>成交额: ' + amount[i] + ' 亿';
+      return s;
+    }},
+    grid:{ left:48, right:20, top:20, bottom:34 },
+    xAxis:{ type:'category', data:dates, boundaryGap:false, axisLabel:{ fontSize:10, rotate:30 } },
+    yAxis:{ type:'value', min:0, max:100, name:'情绪分', axisLabel:{ fontSize:11 } },
+    series:[{
+      name:'情绪分(代理)', type:'line', data:proxy, smooth:true, connectNulls:false,
+      lineStyle:{ width:2.5, color:'#3b82f6' },
+      itemStyle:{ color:'#3b82f6' },
+      areaStyle:{ color:'rgba(59,130,246,0.12)' },
+      markLine:{ silent:true, symbol:'none', label:{ formatter:'当日全口径温度 {c}', position:'insideEndTop', fontSize:11, color:'#ef4444' },
+        lineStyle:{ color:'#ef4444', type:'dashed' }, data:[{ yAxis: todayTemp }] },
+      markPoint:{ symbol:'circle', symbolSize:9, data:[{ coord:[dates.length-1, proxy[dates.length-1]], itemStyle:{ color:'#10b981', borderColor:'#fff', borderWidth:2 } }] }
+    }]
+  });
+
+  // ---- 七分量柱状图 ----
+  var compNames = ['个股广度','涨停净额','最高连板','封板强度','昨溢价','成交量能','小盘相对'];
+  var compScores = [14,54,50,68,50,36,30];
+  var compRaws = ['上涨 14.4%','+4（38−34）','4 板','≈68%（估）','未覆盖','0.857 倍','−2.04 pp'];
+  var compColors = ['#3b82f6','#f59e0b','#f59e0b','#f97316','#9ca3af','#10b981','#10b981'];
+
+  var barChart = echarts.init(document.getElementById('barChart'));
+  barChart.setOption({
+    tooltip:{ trigger:'axis', axisPointer:{ type:'shadow' }, formatter:function(ps){
+      var i = ps[0].dataIndex;
+      return compNames[i] + '：情绪分 ' + compScores[i] + '（' + compRaws[i] + '）';
+    }},
+    grid:{ left:90, right:60, top:10, bottom:30 },
+    xAxis:{ type:'value', min:0, max:100, axisLabel:{ fontSize:11 } },
+    yAxis:{ type:'category', data:compNames, axisLabel:{ fontSize:12 } },
+    series:[{
+      type:'bar', data: compScores.map(function(v,i){ return { value:v, itemStyle:{ color:compColors[i], borderRadius:[0,5,5,0] } }; }),
+      barWidth:'58%',
+      label:{ show:true, position:'right', fontSize:11, formatter:function(p){ return compRaws[p.dataIndex]; } }
+    }]
+  });
+
+  window.addEventListener('resize', function(){ lineChart.resize(); barChart.resize(); });
+})();
+</script>
+</body>
+</html>
