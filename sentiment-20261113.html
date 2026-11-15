@@ -65,7 +65,7 @@
   th{background:#fafafa; font-weight:600; color:var(--sub);}
   td.num{text-align:right; font-variant-numeric:tabular-nums;}
   .tag{display:inline-block; padding:1px 8px; border-radius:10px; font-size:11px; color:#fff; font-weight:600;}
-  .tag.b{background:var(--blue);} .tag.g{background:var(--green);} .tag.y{background:var(--yellow);} .tag.o{background:var(--orange);} .tag.x{background:var(--gray);}
+  .tag.b{background:var(--blue);} .tag.g{background:var(--green);} .tag.y{background:var(--yellow);} .tag.o{background:var(--orange);} .tag.r{background:var(--red);} .tag.x{background:var(--gray);}
   .note{font-size:12px; color:var(--sub);}
   .note p{margin-bottom:6px;}
   .src{font-size:11px; color:#9ca3af; margin-top:8px;}
@@ -437,16 +437,17 @@
       });
     });
     html += '</tbody></table>';
-    html += '<p class="note" style="margin-top:10px;">合成：情绪温度 = Σ（分量情绪分 × 权重）。各分量情绪分为 0–100 映射值（score = clamp(a×原始值+b, 0, 100)）。模型版本 ' + (modelConfig && modelConfig.version ? modelConfig.version : '—') + '。</p>';
+    html += '<p class="note" style="margin-top:10px;">合成：情绪温度 = Σ（分量情绪分 × 权重）。各分量情绪分为 0–100 映射值（score = clamp(a×原始值+b, 0, 100)，中性锚定 50）。强度标签：极弱&lt;20 / 偏弱20–40 / 中性40–60 / 偏强60–80 / 极强≥80。模型版本 ' + (modelConfig && modelConfig.version ? modelConfig.version : '—') + '。</p>';
     document.getElementById('methodTable').innerHTML = html;
   }
   function tagOf(v){
     v = Number(v);
     if(v===null || isNaN(v)) return { label:'无数据', cls:'x' };
-    if(v<25) return { label:'极弱', cls:'b' };
+    if(v<20) return { label:'极弱', cls:'b' };
     if(v<40) return { label:'偏弱', cls:'g' };
-    if(v<55) return { label:'中性', cls:'y' };
-    return { label:'偏强', cls:'o' };
+    if(v<60) return { label:'中性', cls:'y' };
+    if(v<80) return { label:'偏强', cls:'o' };
+    return { label:'极强', cls:'r' };
   }
   function groupTag(g){
     var m = {'赚钱效应':'#ef4444','盘面温度':'#3b82f6','动能结构':'#f97316'};
